@@ -37,7 +37,8 @@ const ROLE_CONFIG: Record<string, { icon: any; color: string; bg: string; label:
   Chairwoman: { icon: Crown,      color: "text-yellow-900",  bg: "bg-yellow-100",  label: "Chairwoman",  gradient: "from-yellow-400 via-amber-400 to-orange-400", animClass: "badge-authority-gold",   cardClass: "member-card member-card-gold"   },
   Secretary:  { icon: Shield,     color: "text-indigo-700",  bg: "bg-indigo-100",  label: "Secretary",   gradient: "from-indigo-500 via-indigo-400 to-violet-500", animClass: "badge-authority-indigo", cardClass: "member-card member-card-indigo" },
   Treasurer:  { icon: Star,       color: "text-blue-700",    bg: "bg-blue-100",    label: "Treasurer",   gradient: "from-blue-500 via-blue-400 to-cyan-500",       animClass: "badge-authority-indigo", cardClass: "member-card member-card-indigo" },
-  Committee:  { icon: BadgeCheck, color: "text-rose-700",    bg: "bg-rose-100",    label: "Committee",   gradient: "from-rose-500 via-pink-400 to-rose-400",       animClass: "badge-authority-rose",   cardClass: "member-card member-card-rose"   },
+  Committee:          { icon: BadgeCheck, color: "text-rose-700",    bg: "bg-rose-100",    label: "Committee Member", gradient: "from-rose-500 via-pink-400 to-rose-400", animClass: "badge-authority-rose", cardClass: "member-card member-card-rose" },
+  "Committee Member": { icon: BadgeCheck, color: "text-rose-700",    bg: "bg-rose-100",    label: "Committee Member", gradient: "from-rose-500 via-pink-400 to-rose-400", animClass: "badge-authority-rose", cardClass: "member-card member-card-rose" },
   Guard:      { icon: ShieldCheck,color: "text-slate-700",   bg: "bg-slate-100",   label: "Guard",       cardClass: "member-card" },
   Resident:   { icon: User,       color: "text-green-700",   bg: "bg-green-100",   label: "Resident",    animClass: "badge-resident",                              cardClass: "member-card member-card-green" },
 };
@@ -72,7 +73,7 @@ export default function MembersPage() {
   const fetchMembers = async () => {
     const { data, error } = await supabase.from("society_members").select("*").order("flat_number", { ascending: true });
     if (!error && data) {
-      const order: any = { Chairwoman: 1, Chairman: 1, Secretary: 2, Treasurer: 3, Committee: 4, Guard: 5, Resident: 6 };
+      const order: any = { Chairwoman: 1, Chairman: 1, Secretary: 2, Treasurer: 3, Committee: 4, "Committee Member": 4, Guard: 5, Resident: 6 };
       const sorted = data.sort((a, b) => {
         const diff = (order[a.badge] || 4) - (order[b.badge] || 4);
         return diff !== 0 ? diff : (a.flat_number || "").localeCompare(b.flat_number || "");
