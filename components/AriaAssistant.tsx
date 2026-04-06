@@ -252,7 +252,7 @@ export default function AriaAssistant() {
             <div className="bg-gradient-to-r from-violet-600 to-purple-700 px-4 py-3 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden">
                     <img
                       src="/aria-logo.png"
                       alt="Aria"
@@ -311,7 +311,7 @@ export default function AriaAssistant() {
                       animate={{ opacity: 1, y: 0 }}
                       className="text-center pt-6 pb-2"
                     >
-                      <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center overflow-hidden">
+                      <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-violet-100">
                         <img
                           src="/aria-logo.png"
                           alt="Aria"
