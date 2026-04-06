@@ -51,7 +51,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
     "/api/razorpay/:path*",
     "/api/send-sos-sms",
     "/api/aria",
