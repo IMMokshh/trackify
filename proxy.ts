@@ -4,7 +4,7 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 const PROTECTED_PREFIXES = ["/dashboard", "/api/razorpay", "/api/send-sos-sms", "/api/aria", "/api/classify-issue", "/api/clean-description", "/api/smart-service-match", "/api/payment-notification"];
 const ADMIN_ONLY = ["/dashboard/admin"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
   const { pathname } = req.nextUrl;
 
