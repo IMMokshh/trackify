@@ -214,7 +214,7 @@ export default function AriaAssistant() {
             className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full shadow-2xl flex items-center justify-center overflow-hidden"
             aria-label="Open Aria assistant"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-700" />
+            <div className="absolute inset-0 bg-white rounded-full" />
             {/* pulse ring */}
             <motion.div
               className="absolute inset-0 rounded-full bg-violet-400"
