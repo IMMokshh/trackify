@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'cache-control': 'no-cache',
       },
-      body: JSON.stringify({ route: 'q', message: safeMessage, numbers: number, flash: 0 }),
+      body: JSON.stringify({ route: 'v3', sender_id: 'FSTSMS', message: safeMessage, numbers: number, flash: 0 }),
     });
 
     let data: any = {};
