@@ -63,7 +63,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: false, 
-      error: data.message ? JSON.stringify(data.message) : 'SMS delivery failed' 
+      error: data.message ? JSON.stringify(data.message) : 'SMS delivery failed',
+      raw: data
     }, { status: 400 });
   } catch {
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
