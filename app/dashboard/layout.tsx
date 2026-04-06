@@ -252,8 +252,8 @@ export default function DashboardLayout({
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs bg-white/20 px-3 py-1 rounded-full capitalize">
-                  {memberBadge || profile.role}
+                <span className="text-xs bg-white/20 px-3 py-1 rounded-full">
+                  {memberBadge || (profile.role === 'admin' ? 'Admin' : 'Resident')}
                 </span>
                 <ChevronRight className="w-4 h-4 text-blue-200" />
               </div>
@@ -354,7 +354,7 @@ export default function DashboardLayout({
                       </div>
                     </div>
                     <span className="text-xs bg-white/20 px-3 py-1 rounded-full capitalize">
-                      {memberBadge || profile.role}
+                      {memberBadge || (profile.role === 'admin' ? 'Admin' : 'Resident')}
                     </span>
                   </div>
                 )}
