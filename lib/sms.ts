@@ -2,6 +2,7 @@
 
 const MAX_RETRIES = 1;
 const RETRY_DELAY_MS = 1500;
+const RETRY_DELAY_MS = 1500;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,20 +25,15 @@ export const sendSOSSMS = async (
   message: string
 ) => {
   const smsMessage = `SOS! ${senderName} Flat ${flatNumber} needs help. ${location ? 'Location: ' + location + '.' : ''} ${message || 'Emergency!'} -Trackify`;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const result = await sendSMSOnce(phoneNumber, smsMessage);
-      return result;
-    } catch (error: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`SMS attempt ${attempt} failed:`, error.message);
-      }
-      if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS * attempt);
-      else return { success: false, error: error.message };
+  try {
+    const result = await sendSMSOnce(phoneNumber, smsMessage);
+    return result;
+  } catch (error: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('SMS failed:', error.message);
     }
+    return { success: false, error: error.message };
   }
-  return { success: false, error: 'Max retries exceeded' };
 };
 
 // AI-powered emergency text enhancer
