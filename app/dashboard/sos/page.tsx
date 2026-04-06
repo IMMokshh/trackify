@@ -88,7 +88,7 @@ export default function SOSPage() {
       
       // Send SMS automatically
       sendSOSSMS(
-        '+919076195124',
+        '+919076195126',
         profile?.full_name || "Unknown",
         profile?.flat_number || "N/A",
         sosLocation || "Not specified",
@@ -198,12 +198,12 @@ export default function SOSPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { label: "Security", number: "9076195124", icon: Shield },
-              { label: "Admin", number: "9076195124", icon: Phone },
+              { label: "Security", number: "9076195126", icon: Shield },
+              { label: "Admin", number: "9076195126", icon: Phone },
               { label: "Police", number: "100", icon: AlertTriangle },
               { label: "Fire", number: "101", icon: AlertTriangle },
               { label: "Ambulance", number: "102", icon: Phone },
-              { label: "Society Manager", number: "9076195124", icon: Shield },
+              { label: "Society Manager", number: "9076195126", icon: Shield },
             ].map((contact, index) => (
               <motion.a
                 key={contact.label}
