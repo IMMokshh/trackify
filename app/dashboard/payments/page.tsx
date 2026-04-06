@@ -433,7 +433,7 @@ export default function PaymentsPage() {
     }
 
     const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "",
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_SaBk0GjdfknBI4",
       amount: Math.round(parseFloat(payment.amount) * 100),
       currency: "INR",
       name: SOCIETY.appName,
