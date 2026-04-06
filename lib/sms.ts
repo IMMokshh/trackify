@@ -1,6 +1,6 @@
 // SMS sending functionality with retry logic
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 1;
 const RETRY_DELAY_MS = 1500;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

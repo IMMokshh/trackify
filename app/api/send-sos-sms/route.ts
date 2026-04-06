@@ -43,17 +43,28 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'cache-control': 'no-cache',
       },
-      body: JSON.stringify({ route: 'v3', sender_id: 'FSTSMS', message: safeMessage, numbers: number, flash: 0 }),
+      body: JSON.stringify({ 
+        route: 'q',
+        message: safeMessage, 
+        numbers: number, 
+        flash: 0 
+      }),
     });
 
     let data: any = {};
     try { data = await response.json(); } catch { /* empty */ }
 
+    // Log for debugging
+    console.log('[SMS] Fast2SMS response:', JSON.stringify(data));
+
     if (data.return === true) {
       return NextResponse.json({ success: true, messageId: data.request_id });
     }
 
-    return NextResponse.json({ success: false, error: 'SMS delivery failed' }, { status: 400 });
+    return NextResponse.json({ 
+      success: false, 
+      error: data.message ? JSON.stringify(data.message) : 'SMS delivery failed' 
+    }, { status: 400 });
   } catch {
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
   }
