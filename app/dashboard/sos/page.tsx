@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { notifySOSAlert } from "@/lib/notifications";
@@ -320,9 +321,9 @@ export default function SOSPage() {
         )}
       </div>
 
-      {/* SOS Modal */}
+      {/* SOS Modal — rendered via portal to escape layout stacking context */}
       <AnimatePresence>
-        {showSOSModal && (
+        {showSOSModal && typeof document !== "undefined" && createPortal(
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -417,7 +418,7 @@ export default function SOSPage() {
               </div>
             </motion.div>
           </motion.div>
-        )}
+        , document.body)}
       </AnimatePresence>
     </div>
   );
