@@ -5,14 +5,15 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { generateQRCode } from "@/lib/qrcode";
+import Link from "next/link";
 import {
   UserCheck, Plus, Copy, Share2, Clock, CheckCircle2,
   XCircle, AlertCircle, X, ChevronDown, ChevronUp,
-  QrCode, Phone, Calendar, Tag, Shield,
+  QrCode, Phone, Calendar, Tag, Shield, FileText,
 } from "lucide-react";
 
 // ---- Types ----
-type PassStatus = "active" | "used" | "expired" | "cancelled";
+type PassStatus = "active" | "used" | "expired" | "cancelled" | "inside" | "exited";
 type PassPurpose = "Guest" | "Delivery" | "Service" | "Cab" | "Other";
 
 interface VisitorPass {
@@ -21,10 +22,12 @@ interface VisitorPass {
   visitor_phone: string | null;
   purpose: PassPurpose;
   otp: string;
+  exit_otp: string | null;
   valid_from: string;
   valid_until: string;
   status: PassStatus;
   entry_time: string | null;
+  exit_time: string | null;
   created_at: string;
   flat_number: string;
 }
@@ -40,6 +43,8 @@ const PURPOSE_CONFIG: Record<PassPurpose, { color: string; bg: string }> = {
 
 const STATUS_CONFIG: Record<PassStatus, { label: string; color: string; bg: string; icon: any }> = {
   active:    { label: "Active",    color: "text-green-700",  bg: "bg-green-100",  icon: CheckCircle2 },
+  inside:    { label: "Inside",    color: "text-yellow-700", bg: "bg-yellow-100", icon: CheckCircle2 },
+  exited:    { label: "Exited",    color: "text-blue-700",   bg: "bg-blue-100",   icon: CheckCircle2 },
   used:      { label: "Used",      color: "text-blue-700",   bg: "bg-blue-100",   icon: CheckCircle2 },
   expired:   { label: "Expired",   color: "text-gray-500",   bg: "bg-gray-100",   icon: XCircle      },
   cancelled: { label: "Cancelled", color: "text-red-600",    bg: "bg-red-100",    icon: XCircle      },
@@ -78,6 +83,7 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const isActive = pass.status === "active";
+  const isInside = pass.status === "inside";
   const statusCfg = STATUS_CONFIG[pass.status];
   const purposeCfg = PURPOSE_CONFIG[pass.purpose] || PURPOSE_CONFIG.Other;
   const StatusIcon = statusCfg.icon;
@@ -109,7 +115,9 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
       className={`rounded-3xl border-2 p-6 transition-all ${
         isActive
           ? "bg-white border-indigo-200 shadow-lg shadow-indigo-50"
-          : "bg-gray-50 border-gray-200 shadow-sm"
+          : isInside
+            ? "bg-yellow-50 border-yellow-300 shadow-lg shadow-yellow-50"
+            : "bg-gray-50 border-gray-200 shadow-sm"
       }`}
     >
       {/* Top row */}
@@ -140,10 +148,10 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
         )}
       </div>
 
-      {/* OTP display */}
+      {/* Entry OTP display */}
       {isActive && (
         <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-4 mb-4">
-          <p className="text-xs font-semibold text-indigo-400 mb-2 uppercase tracking-wider">Gate Pass OTP</p>
+          <p className="text-xs font-semibold text-indigo-400 mb-2 uppercase tracking-wider">Entry OTP</p>
           <div className="flex items-center justify-between">
             <span className="text-4xl font-black font-mono tracking-[0.3em] text-indigo-700 select-all">
               {pass.otp}
@@ -151,6 +159,25 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
             <motion.button whileTap={{ scale: 0.9 }} onClick={copyOTP}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                 copied ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+              }`}>
+              <Copy className="w-3.5 h-3.5" />
+              {copied ? "Copied!" : "Copy"}
+            </motion.button>
+          </div>
+        </div>
+      )}
+
+      {/* Exit OTP display — only shown after visitor has entered */}
+      {isInside && pass.exit_otp && (
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-4 mb-4">
+          <p className="text-xs font-semibold text-yellow-600 mb-2 uppercase tracking-wider">Exit OTP (visitor is inside)</p>
+          <div className="flex items-center justify-between">
+            <span className="text-4xl font-black font-mono tracking-[0.3em] text-orange-700 select-all">
+              {pass.exit_otp}
+            </span>
+            <motion.button whileTap={{ scale: 0.9 }} onClick={copyOTP}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                copied ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
               }`}>
               <Copy className="w-3.5 h-3.5" />
               {copied ? "Copied!" : "Copy"}
@@ -175,6 +202,12 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
           <div className="flex items-center gap-2 col-span-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
             <span className="text-green-600 font-medium">Entered at {new Date(pass.entry_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+          </div>
+        )}
+        {pass.exit_time && (
+          <div className="flex items-center gap-2 col-span-2">
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />
+            <span className="text-blue-600 font-medium">Exited at {new Date(pass.exit_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
           </div>
         )}
       </div>
@@ -203,20 +236,22 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
       )}
 
       {/* Action buttons */}
-      {isActive && (
+      {(isActive || isInside) && (
         <div className="flex gap-2">
-          {pass.visitor_phone && (
+          {pass.visitor_phone && isActive && (
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
               onClick={shareWhatsApp}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-bold transition-colors">
               <Share2 className="w-4 h-4" /> Share on WhatsApp
             </motion.button>
           )}
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={() => onCancel(pass.id)}
-            className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-bold transition-colors">
-            Cancel
-          </motion.button>
+          {isActive && (
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              onClick={() => onCancel(pass.id)}
+              className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-bold transition-colors">
+              Cancel
+            </motion.button>
+          )}
         </div>
       )}
     </motion.div>
@@ -507,8 +542,8 @@ export default function VisitorsPage() {
     fetchPasses();
   };
 
-  const activePasses = passes.filter((p) => p.status === "active");
-  const pastPasses   = passes.filter((p) => p.status !== "active");
+  const activePasses = passes.filter((p) => p.status === "active" || p.status === "inside");
+  const pastPasses   = passes.filter((p) => p.status !== "active" && p.status !== "inside");
 
   return (
     <div className="space-y-6 p-6 max-w-4xl mx-auto">
@@ -524,11 +559,19 @@ export default function VisitorsPage() {
           </h1>
           <p className="text-gray-500 mt-1 ml-1">Pre-approve guests with a secure OTP gate pass</p>
         </div>
-        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-shadow">
-          <Plus className="w-4 h-4" /> Invite Visitor
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/visitors/reports">
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-2xl font-bold text-sm transition-colors">
+              <FileText className="w-4 h-4" /> Reports
+            </motion.button>
+          </Link>
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-shadow">
+            <Plus className="w-4 h-4" /> Invite Visitor
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* Stats */}

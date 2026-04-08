@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Delete, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { Shield, Delete, CheckCircle2, XCircle, RotateCcw, LogIn, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -29,12 +29,15 @@ function beep(type: "success" | "error") {
 }
 
 type VerifyState = "idle" | "loading" | "success" | "error";
+type TabMode = "entry" | "exit";
 
 interface PassResult {
   visitor_name: string;
   flat_number: string;
   purpose: string;
-  entry_time: string;
+  entry_time?: string;
+  exit_time?: string;
+  exit_otp?: string;
 }
 
 const PURPOSE_COLORS: Record<string, string> = {
@@ -48,14 +51,15 @@ const PURPOSE_COLORS: Record<string, string> = {
 export default function GuardDashboardPage() {
   const router = useRouter();
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [tab, setTab] = useState<TabMode>("entry");
   const [otp, setOtp] = useState("");
   const [state, setState] = useState<VerifyState>("idle");
   const [result, setResult] = useState<PassResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [shake, setShake] = useState(false);
   const [activePassCount, setActivePassCount] = useState(0);
+  const [insideCount, setInsideCount] = useState(0);
 
-  // Access control: only guard or admin/committee
   useEffect(() => {
     const check = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -73,41 +77,51 @@ export default function GuardDashboardPage() {
     check();
   }, [router]);
 
-  // Active pass counter with real-time subscription
   useEffect(() => {
-    const fetchCount = async () => {
-      const { count } = await supabase
-        .from("visitor_passes")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active");
-      setActivePassCount(count || 0);
+    const fetchCounts = async () => {
+      const [{ count: active }, { count: inside }] = await Promise.all([
+        supabase.from("visitor_passes").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("visitor_passes").select("*", { count: "exact", head: true }).eq("status", "inside"),
+      ]);
+      setActivePassCount(active || 0);
+      setInsideCount(inside || 0);
     };
-    fetchCount();
+    fetchCounts();
 
     const channel = supabase
-      .channel("active-passes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "visitor_passes" }, fetchCount)
+      .channel("guard-passes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "visitor_passes" }, fetchCounts)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const reset = useCallback(() => {    setOtp("");
+  const reset = useCallback(() => {
+    setOtp("");
     setState("idle");
     setResult(null);
     setErrorMsg("");
   }, []);
 
+  // Reset state when switching tabs
+  useEffect(() => { reset(); }, [tab, reset]);
+
   const verify = useCallback(async (code: string) => {
     if (code.length !== 6) return;
     setState("loading");
     try {
-      const res = await fetch("/api/visitors/verify-otp", {
+      const endpoint = tab === "entry" ? "/api/visitors/verify-otp" : "/api/visitors/verify-exit";
+      const body = tab === "entry"
+        ? { otp: code, guard_pin: "1234" }
+        : { exit_otp: code, guard_pin: "1234" };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ otp: code, guard_pin: "1234" }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
+
       if (res.ok && data.success) {
         beep("success");
         vibrate();
@@ -128,7 +142,7 @@ export default function GuardDashboardPage() {
       setState("error");
       setTimeout(reset, 2500);
     }
-  }, [reset]);
+  }, [tab, reset]);
 
   const press = useCallback((key: string) => {
     if (state === "loading" || state === "success") return;
@@ -167,20 +181,52 @@ export default function GuardDashboardPage() {
           <p className="text-white font-bold">Guard Panel</p>
           <p className="text-gray-500 text-xs">Greenwood Heights - Gate Entry</p>
         </div>
-        <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-xl">
-          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-green-400 text-sm font-bold">{activePassCount}</span>
-          <span className="text-gray-400 text-xs">active passes</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-xl">
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-green-400 text-sm font-bold">{activePassCount}</span>
+            <span className="text-gray-400 text-xs">pending</span>
+          </div>
+          <div className="flex items-center gap-2 bg-gray-800 px-3 py-1.5 rounded-xl">
+            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+            <span className="text-yellow-400 text-sm font-bold">{insideCount}</span>
+            <span className="text-gray-400 text-xs">inside</span>
+          </div>
         </div>
       </div>
+
+      {/* Entry / Exit Tabs */}
+      <div className="flex gap-2 px-6 pt-5">
+        {([
+          { key: "entry", label: "Entry Verification", icon: LogIn, color: "from-green-500 to-emerald-600" },
+          { key: "exit",  label: "Exit Verification",  icon: LogOut, color: "from-orange-500 to-red-500" },
+        ] as const).map(({ key, label, icon: Icon, color }) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all ${
+              tab === key
+                ? `bg-gradient-to-r ${color} text-white shadow-lg`
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+            }`}>
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab hint */}
+      <p className="text-center text-gray-600 text-xs mt-3 px-6">
+        {tab === "entry"
+          ? "Ask visitor for their Entry OTP from the gate pass"
+          : "Ask visitor for their Exit OTP (generated after entry)"}
+      </p>
 
       {/* Main */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <AnimatePresence mode="wait">
 
-          {/* Success */}
-          {state === "success" && result && (
-            <motion.div key="success"
+          {/* Success - Entry */}
+          {state === "success" && result && tab === "entry" && (
+            <motion.div key="success-entry"
               initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
               className="flex flex-col items-center gap-6 w-full max-w-sm text-center">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
@@ -189,7 +235,35 @@ export default function GuardDashboardPage() {
                 <CheckCircle2 className="w-16 h-16 text-white" />
               </motion.div>
               <div>
-                <p className="text-green-400 text-sm font-semibold uppercase tracking-widest mb-2">Entry Approved</p>
+                <p className="text-green-400 text-sm font-semibold uppercase tracking-widest mb-2">Entry Verified ✓</p>
+                <h2 className="text-4xl font-black text-white mb-1">{result.visitor_name}</h2>
+                <p className="text-gray-400 text-xl font-bold">Flat {result.flat_number}</p>
+              </div>
+              <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${PURPOSE_COLORS[result.purpose] || PURPOSE_COLORS.Other}`}>
+                {result.purpose}
+              </span>
+              {result.exit_otp && (
+                <div className="bg-gray-800 rounded-2xl p-4 w-full text-center">
+                  <p className="text-gray-400 text-xs mb-1 uppercase tracking-wider">Exit OTP (share with resident)</p>
+                  <p className="text-white text-3xl font-black font-mono tracking-[0.3em]">{result.exit_otp}</p>
+                </div>
+              )}
+              <p className="text-gray-600 text-sm">Auto-clearing in {AUTO_CLEAR_MS / 1000}s...</p>
+            </motion.div>
+          )}
+
+          {/* Success - Exit */}
+          {state === "success" && result && tab === "exit" && (
+            <motion.div key="success-exit"
+              initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
+              className="flex flex-col items-center gap-6 w-full max-w-sm text-center">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
+                className="w-28 h-28 bg-orange-500 rounded-full flex items-center justify-center shadow-2xl shadow-orange-900">
+                <LogOut className="w-16 h-16 text-white" />
+              </motion.div>
+              <div>
+                <p className="text-orange-400 text-sm font-semibold uppercase tracking-widest mb-2">Exit Recorded ✓</p>
                 <h2 className="text-4xl font-black text-white mb-1">{result.visitor_name}</h2>
                 <p className="text-gray-400 text-xl font-bold">Flat {result.flat_number}</p>
               </div>
@@ -222,8 +296,12 @@ export default function GuardDashboardPage() {
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="flex flex-col items-center gap-8 w-full max-w-xs">
               <div className="text-center">
-                <h2 className="text-white text-2xl font-black mb-1">Enter Visitor OTP</h2>
-                <p className="text-gray-500 text-sm">Ask visitor for their 6-digit gate pass</p>
+                <h2 className="text-white text-2xl font-black mb-1">
+                  {tab === "entry" ? "Enter Entry OTP" : "Enter Exit OTP"}
+                </h2>
+                <p className="text-gray-500 text-sm">
+                  {tab === "entry" ? "Ask visitor for their 6-digit gate pass OTP" : "Ask visitor for their 6-digit exit OTP"}
+                </p>
               </div>
 
               {/* OTP boxes */}
@@ -232,9 +310,9 @@ export default function GuardDashboardPage() {
                 {[0,1,2,3,4,5].map((i) => (
                   <div key={i} className={`w-11 h-14 rounded-xl border-2 flex items-center justify-center text-2xl font-black transition-all ${
                     otp[i]
-                      ? "bg-indigo-600 border-indigo-500 text-white"
+                      ? tab === "entry" ? "bg-indigo-600 border-indigo-500 text-white" : "bg-orange-600 border-orange-500 text-white"
                       : i === otp.length
-                        ? "border-indigo-400 bg-gray-900 animate-pulse"
+                        ? tab === "entry" ? "border-indigo-400 bg-gray-900 animate-pulse" : "border-orange-400 bg-gray-900 animate-pulse"
                         : "border-gray-700 bg-gray-900"
                   }`}>
                     {otp[i] || ""}
@@ -256,7 +334,7 @@ export default function GuardDashboardPage() {
                         className={`h-16 rounded-2xl text-2xl font-bold flex items-center justify-center transition-colors ${
                           key === "del"
                             ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                            : "bg-gray-800 text-white hover:bg-gray-700 active:bg-indigo-600"
+                            : `bg-gray-800 text-white hover:bg-gray-700 ${tab === "entry" ? "active:bg-indigo-600" : "active:bg-orange-600"}`
                         }`}>
                         {key === "del" ? <Delete className="w-6 h-6" /> : key}
                       </motion.button>
