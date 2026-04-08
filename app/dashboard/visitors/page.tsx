@@ -101,7 +101,10 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
   };
 
   const shareWhatsApp = () => {
-    const msg = `Hi! I have pre-approved your visit to Flat ${pass.flat_number}, Greenwood Heights.\n\nVisitor Pass OTP: *${pass.otp}*\nValid until: ${new Date(pass.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.`;
+    const isInside = pass.status === "inside";
+    const msg = isInside
+      ? `Hi! Your visit to Flat ${pass.flat_number}, Greenwood Heights has been verified ✅\n\n*You are currently inside the society.*\n\nWhen you leave, show this *Exit OTP* to the guard:\n🔐 Exit OTP: *${pass.exit_otp}*\n\nThank you!`
+      : `Hi! I have pre-approved your visit to Flat ${pass.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${pass.otp}*\nValid until: ${new Date(pass.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.\n\n_An Exit OTP will be generated automatically after you enter._`;
     window.open(`https://wa.me/${pass.visitor_phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -245,6 +248,13 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
               <Share2 className="w-4 h-4" /> Share on WhatsApp
             </motion.button>
           )}
+          {pass.visitor_phone && isInside && (
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              onClick={shareWhatsApp}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-bold transition-colors">
+              <Share2 className="w-4 h-4" /> Share Exit OTP
+            </motion.button>
+          )}
           {isActive && (
             <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
               onClick={() => onCancel(pass.id)}
@@ -330,7 +340,7 @@ function InviteModal({ onClose, onCreated, prefill }: InviteModalProps) {
 
   const shareWhatsApp = () => {
     if (!success) return;
-    const msg = `Hi! I have pre-approved your visit to Flat ${success.flat_number}, Greenwood Heights.\n\nVisitor Pass OTP: *${success.otp}*\nValid until: ${new Date(success.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.`;
+    const msg = `Hi! I have pre-approved your visit to Flat ${success.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${success.otp}*\nValid until: ${new Date(success.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.\n\n_An Exit OTP will be generated automatically after you enter._`;
     window.open(`https://wa.me/${success.visitor_phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
