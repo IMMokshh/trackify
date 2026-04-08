@@ -16,6 +16,13 @@ export default function LoginPage() {
   const [isTypingPassword, setIsTypingPassword] = useState(false);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
+  // If already logged in, redirect to dashboard — prevents back button access
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace("/dashboard");
+    });
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -30,7 +37,7 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.user) {
-        router.push("/dashboard");
+        router.replace("/dashboard"); // replace instead of push — removes login from history
       }
     } catch (error: any) {
       setError(error.message || "Failed to login");

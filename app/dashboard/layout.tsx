@@ -114,7 +114,7 @@ export default function DashboardLayout({
   const checkUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      router.push("/auth/login");
+      router.replace("/auth/login");
       return;
     }
     setUser(user);
@@ -160,7 +160,7 @@ export default function DashboardLayout({
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
-    router.push("/");
+    router.replace("/auth/login"); // replace clears dashboard from history
   }, [router]);
 
   const menuItems = [
@@ -401,7 +401,7 @@ export default function DashboardLayout({
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         {/* Desktop Header with Notification Bell */}
         <div className="hidden lg:flex bg-white shadow-sm p-4 items-center justify-end sticky top-0 z-40">
           {/* Notification Bell - Desktop */}
@@ -586,7 +586,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-4 lg:p-8 overflow-x-hidden relative">
+        <main className="flex-1 p-4 lg:p-8 relative">
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 12 }}

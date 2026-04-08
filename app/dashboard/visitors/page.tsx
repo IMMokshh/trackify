@@ -503,14 +503,14 @@ export default function VisitorsPage() {
 
   // Auto-open modal with prefill if query params are present
   useEffect(() => {
-    const name    = searchParams.get("name");
-    const phone   = searchParams.get("phone");
-    const purpose = searchParams.get("purpose") as PassPurpose | null;
-    const date    = searchParams.get("date");
-    const time    = searchParams.get("time");
+    const name        = searchParams.get("name");
+    const phone       = searchParams.get("phone");
+    const purpose     = searchParams.get("purpose") as PassPurpose | null;
+    const date        = searchParams.get("date");
+    const time        = searchParams.get("time");
+    const valid_until = searchParams.get("valid_until");
 
-    if (name) {
-      // Build valid_from from date + time if provided
+    if (name || purpose) {
       let valid_from = "";
       if (date && time) {
         valid_from = `${date}T${time}`;
@@ -518,11 +518,11 @@ export default function VisitorsPage() {
         valid_from = `${date}T09:00`;
       }
       setPrefill({
-        visitor_name:  name,
+        visitor_name:  name || "",
         visitor_phone: phone || "",
-        purpose:       purpose || "Service",
+        purpose:       purpose || "Guest",
         valid_from,
-        valid_until:   "",
+        valid_until:   valid_until || "",
       });
       setShowModal(true);
     }

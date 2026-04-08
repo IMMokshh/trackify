@@ -281,3 +281,136 @@ export function detectLanguage(text: string): { code: string; label: string; fla
 
   return { code: "en", label: "English", flag: "🌐" };
 }
+
+// ── Visitor Intent NLP ────────────────────────────────────────────────────────
+
+export interface VisitorIntentResult {
+  detected: boolean;
+  name: string;
+  phone: string;
+  purpose: "Guest" | "Delivery" | "Service" | "Cab" | "Other";
+  date: string;       // YYYY-MM-DD
+  time: string;       // HH:MM
+  valid_until: string; // YYYY-MM-DDTHH:MM
+  description: string;
+}
+
+function resolveDate(text: string): string {
+  const now = new Date();
+  const lower = text.toLowerCase();
+  if (lower.includes("tomorrow")) {
+    const d = new Date(now); d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  }
+  if (lower.includes("day after")) {
+    const d = new Date(now); d.setDate(d.getDate() + 2);
+    return d.toISOString().split("T")[0];
+  }
+  // Try to find explicit date like "15th", "15 april", "april 15"
+  const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  for (let i = 0; i < monthNames.length; i++) {
+    const re = new RegExp(`(\\d{1,2})\\s*(?:st|nd|rd|th)?\\s*${monthNames[i]}|${monthNames[i]}\\s*(\\d{1,2})`, "i");
+    const m = text.match(re);
+    if (m) {
+      const day = parseInt(m[1] || m[2]);
+      const d = new Date(now.getFullYear(), i, day);
+      if (d < now) d.setFullYear(d.getFullYear() + 1);
+      return d.toISOString().split("T")[0];
+    }
+  }
+  // Default: today
+  return now.toISOString().split("T")[0];
+}
+
+function resolveTime(text: string): string {
+  const lower = text.toLowerCase();
+
+  // Match "6 pm", "6:30 pm", "18:00", "6pm", "at 6"
+  const timeRe = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/gi;
+  let match;
+  while ((match = timeRe.exec(lower)) !== null) {
+    let h = parseInt(match[1]);
+    const m = parseInt(match[2] || "0");
+    const meridiem = match[3];
+    if (meridiem === "pm" && h < 12) h += 12;
+    if (meridiem === "am" && h === 12) h = 0;
+    // Sanity: skip if looks like a year or phone number
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+  }
+
+  // Natural time words
+  if (lower.includes("morning")) return "09:00";
+  if (lower.includes("noon") || lower.includes("lunch")) return "12:00";
+  if (lower.includes("afternoon")) return "14:00";
+  if (lower.includes("evening")) return "18:00";
+  if (lower.includes("night")) return "20:00";
+  if (lower.includes("now") || lower.includes("right now") || lower.includes("immediately")) {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  }
+
+  // Default: current time + 30 min
+  const def = new Date(Date.now() + 30 * 60 * 1000);
+  return `${String(def.getHours()).padStart(2, "0")}:${String(def.getMinutes()).padStart(2, "0")}`;
+}
+
+function resolvePurpose(text: string): "Guest" | "Delivery" | "Service" | "Cab" | "Other" {
+  const lower = text.toLowerCase();
+  if (/\b(delivery|courier|parcel|package|amazon|flipkart|zomato|swiggy|food)\b/.test(lower)) return "Delivery";
+  if (/\b(cab|taxi|uber|ola|auto|rickshaw|driver)\b/.test(lower)) return "Cab";
+  if (/\b(service|repair|plumber|electrician|carpenter|technician|worker|maid|cleaner)\b/.test(lower)) return "Service";
+  if (/\b(guest|friend|family|relative|visitor|invite|come over|visit|meet)\b/.test(lower)) return "Guest";
+  return "Guest"; // default
+}
+
+function extractName(text: string): string {
+  // Patterns: "for Rahul", "invite Rahul", "Rahul is coming", "pass for Rahul"
+  const patterns = [
+    /(?:for|invite|inviting|pass for|guest named?|visitor named?|name(?:d)?(?:\s+is)?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+    /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:is coming|will come|coming over|visiting|is visiting)/i,
+    /create\s+(?:a\s+)?(?:visitor\s+)?pass\s+for\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]) return m[1].trim();
+  }
+  return "";
+}
+
+function buildDescription(name: string, purpose: string, date: string, time: string, original: string): string {
+  const dateStr = new Date(`${date}T${time}`).toLocaleString("en-IN", {
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  });
+  if (name) {
+    return `${purpose} ${name} is invited on ${dateStr}.`;
+  }
+  // Fallback: clean up original input
+  return original.charAt(0).toUpperCase() + original.slice(1).replace(/[.!?]*$/, "") + ` on ${dateStr}.`;
+}
+
+const VISITOR_KEYWORDS = [
+  "invite", "visitor", "visitor pass", "gate pass", "guest", "coming over",
+  "pass for", "create pass", "generate pass", "let in", "allow entry",
+  "delivery", "courier", "cab", "taxi", "uber", "ola",
+];
+
+export function parseVisitorIntent(text: string): VisitorIntentResult {
+  const lower = text.toLowerCase();
+  const detected = VISITOR_KEYWORDS.some((kw) => lower.includes(kw));
+
+  const name = extractName(text);
+  const purpose = resolvePurpose(text);
+  const date = resolveDate(text);
+  const time = resolveTime(text);
+
+  // valid_until = valid_from + 2 hours by default
+  const fromDt = new Date(`${date}T${time}`);
+  const untilDt = new Date(fromDt.getTime() + 2 * 60 * 60 * 1000);
+  const valid_until = `${untilDt.toISOString().split("T")[0]}T${String(untilDt.getHours()).padStart(2, "0")}:${String(untilDt.getMinutes()).padStart(2, "0")}`;
+
+  const description = buildDescription(name, purpose, date, time, text);
+
+  return { detected, name, phone: "", purpose, date, time, valid_until, description };
+}

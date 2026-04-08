@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { X, Send, Minimize2, Maximize2 } from "lucide-react";
-import { callAria, getAriaContext, getContextualData, detectLanguage, handleServiceIntent, AriaMessage } from "@/lib/aria";
+import { callAria, getAriaContext, getContextualData, detectLanguage, handleServiceIntent, parseVisitorIntent, AriaMessage } from "@/lib/aria";
 
 // ── Typing dots indicator ──────────────────────────────────────────────────────
 function TypingDots() {
@@ -151,6 +151,40 @@ export default function AriaAssistant() {
         addMessage({ role: "assistant", content: serviceMsg }, true);
         setTimeout(() => {
           router.push(serviceIntent.navigateTo);
+          setIsOpen(false);
+          setIsWriting(false);
+        }, 2800);
+        return;
+      }
+
+      // Check for visitor pass intent
+      const visitorIntent = parseVisitorIntent(text);
+      if (visitorIntent.detected) {
+        const dateStr = new Date(`${visitorIntent.date}T${visitorIntent.time}`).toLocaleString("en-IN", {
+          weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+        });
+        const preview = [
+          "Got it! Here's what I extracted:",
+          `Name: ${visitorIntent.name || "(not specified — you can fill it in)"}`,
+          `Purpose: ${visitorIntent.purpose}`,
+          `Arrival: ${dateStr}`,
+          "\nOpening the visitor pass form with all fields pre-filled. Navigate to /dashboard/visitors",
+        ].join("\n");
+
+        setIsWriting(true);
+        addMessage({ role: "assistant", content: preview }, true);
+
+        const params = new URLSearchParams();
+        if (visitorIntent.name)  params.set("name", visitorIntent.name);
+        if (visitorIntent.phone) params.set("phone", visitorIntent.phone);
+        params.set("purpose", visitorIntent.purpose);
+        params.set("date", visitorIntent.date);
+        params.set("time", visitorIntent.time);
+        params.set("valid_until", visitorIntent.valid_until);
+        params.set("description", visitorIntent.description);
+
+        setTimeout(() => {
+          router.push(`/dashboard/visitors?${params.toString()}`);
           setIsOpen(false);
           setIsWriting(false);
         }, 2800);
