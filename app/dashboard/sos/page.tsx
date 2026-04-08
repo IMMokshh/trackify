@@ -198,7 +198,7 @@ export default function SOSPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { label: "Security", number: "9076195126", icon: Shield },
+      { label: "Security", number: "9076195126", icon: Shield },
               { label: "Admin", number: "9076195126", icon: Phone },
               { label: "Police", number: "100", icon: AlertTriangle },
               { label: "Fire", number: "101", icon: AlertTriangle },
@@ -327,7 +327,7 @@ export default function SOSPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
             onClick={() => setShowSOSModal(false)}
           >
             <motion.div
@@ -347,7 +347,7 @@ export default function SOSPage() {
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
                 <p className="text-orange-800 font-medium flex items-center gap-2">
                   <MessageCircle className="w-5 h-5" />
-                  This will send SMS automatically to emergency contact: +91 90761 95124
+                  This will send SMS automatically to emergency contact: +91 90761 95126
                 </p>
               </div>
 

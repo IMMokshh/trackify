@@ -51,6 +51,17 @@ export default function AmenitiesPage() {
   const bookAmenity = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !selectedAmenity) return;
+
+    // Validate required fields
+    if (!bookingData.date) { alert("Please select a date."); return; }
+    if (!bookingData.startTime) { alert("Please select a start time."); return; }
+    if (!bookingData.endTime) { alert("Please select an end time."); return; }
+    if (bookingData.startTime >= bookingData.endTime) { alert("End time must be after start time."); return; }
+
+    // Prevent past date bookings
+    const today = new Date().toISOString().split("T")[0];
+    if (bookingData.date < today) { alert("Cannot book for a past date."); return; }
+
     const { error } = await supabase.from("amenity_bookings").insert({
       amenity_id: selectedAmenity.id,
       user_id: user.id,

@@ -103,6 +103,11 @@ export default function CommunityPage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Limit to 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image must be under 5MB.");
+        return;
+      }
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
