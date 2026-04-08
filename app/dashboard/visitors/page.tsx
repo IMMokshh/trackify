@@ -104,7 +104,7 @@ function PassCard({ pass, onCancel }: { pass: VisitorPass; onCancel: (id: string
     const isInside = pass.status === "inside";
     const msg = isInside
       ? `Hi! Your visit to Flat ${pass.flat_number}, Greenwood Heights has been verified ✅\n\n*You are currently inside the society.*\n\nWhen you leave, show this *Exit OTP* to the guard:\n🔐 Exit OTP: *${pass.exit_otp}*\n\nThank you!`
-      : `Hi! I have pre-approved your visit to Flat ${pass.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${pass.otp}*\nValid until: ${new Date(pass.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.\n\n_An Exit OTP will be generated automatically after you enter._`;
+      : `Hi! I have pre-approved your visit to Flat ${pass.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${pass.otp}*\n🔓 *Exit OTP: ${pass.exit_otp}*\n\nValid until: ${new Date(pass.valid_until).toLocaleString()}\n\n• Show *Entry OTP* to the guard when you arrive\n• Show *Exit OTP* to the guard when you leave\n\n_Exit OTP will only work after entry is verified._`;
     window.open(`https://wa.me/${pass.visitor_phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -340,7 +340,7 @@ function InviteModal({ onClose, onCreated, prefill }: InviteModalProps) {
 
   const shareWhatsApp = () => {
     if (!success) return;
-    const msg = `Hi! I have pre-approved your visit to Flat ${success.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${success.otp}*\nValid until: ${new Date(success.valid_until).toLocaleString()}\n\nShow this OTP to the guard at entry.\n\n_An Exit OTP will be generated automatically after you enter._`;
+    const msg = `Hi! I have pre-approved your visit to Flat ${success.flat_number}, Greenwood Heights.\n\n🔐 *Entry OTP: ${success.otp}*\n🔓 *Exit OTP: ${success.exit_otp}*\n\nValid until: ${new Date(success.valid_until).toLocaleString()}\n\n• Show *Entry OTP* to the guard when you arrive\n• Show *Exit OTP* to the guard when you leave\n\n_Exit OTP will only work after entry is verified._`;
     window.open(`https://wa.me/${success.visitor_phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -383,9 +383,15 @@ function InviteModal({ onClose, onCreated, prefill }: InviteModalProps) {
               </div>
 
               <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-5 text-center">
-                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">Gate Pass OTP</p>
+                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">Entry OTP</p>
                 <p className="text-5xl font-black font-mono tracking-[0.3em] text-indigo-700 mb-3">{success.otp}</p>
-                {qrUrl && <img src={qrUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-2 border-indigo-100" />}
+                {success.exit_otp && (
+                  <div className="border-t border-indigo-100 pt-3 mt-1">
+                    <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-2">Exit OTP</p>
+                    <p className="text-5xl font-black font-mono tracking-[0.3em] text-orange-600">{success.exit_otp}</p>
+                  </div>
+                )}
+                {qrUrl && <img src={qrUrl} alt="QR" className="w-32 h-32 mx-auto rounded-xl border-2 border-indigo-100 mt-3" />}
               </div>
 
               <div className="text-sm text-gray-500 text-center">
