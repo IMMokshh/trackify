@@ -322,8 +322,8 @@ export default function SOSPage() {
       </div>
 
       {/* SOS Modal — rendered via portal to escape layout stacking context */}
-      <AnimatePresence>
-        {showSOSModal && typeof document !== "undefined" && createPortal(
+      {showSOSModal && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -418,8 +418,8 @@ export default function SOSPage() {
               </div>
             </motion.div>
           </motion.div>
-        , document.body)}
-      </AnimatePresence>
+        </AnimatePresence>
+      , document.body)}
     </div>
   );
 }
