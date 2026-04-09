@@ -70,10 +70,19 @@ export async function POST(req: NextRequest) {
           ? "guard"
           : "resident";
 
-      await supabaseAdmin
+      // Look up profile by email via profiles table directly
+      const { data: targetProfile } = await supabaseAdmin
         .from("profiles")
-        .update({ role: profileRole })
-        .eq("id", (await supabaseAdmin.auth.admin.getUserByEmail(member.email)).data.user?.id || "");
+        .select("id")
+        .eq("email", member.email)
+        .maybeSingle();
+
+      if (targetProfile?.id) {
+        await supabaseAdmin
+          .from("profiles")
+          .update({ role: profileRole })
+          .eq("id", targetProfile.id);
+      }
     }
 
     return NextResponse.json({ success: true, message: `Role updated to ${newRole}` });
