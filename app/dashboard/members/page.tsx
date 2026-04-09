@@ -126,6 +126,7 @@ export default function MembersPage() {
   };
 
   const saveMember = async () => {
+    if (!canAssignRoles) { toast.error("You do not have permission to edit members"); return; }
     if (!editForm?.full_name?.trim() || !editForm?.flat_number?.trim()) {
       toast.error("Name and flat number are required");
       return;
@@ -161,6 +162,7 @@ export default function MembersPage() {
   };
 
   const deleteMember = async (member: any) => {
+    if (!canAssignRoles) { toast.error("You do not have permission to delete members"); return; }
     if (!confirm(`Delete ${member.full_name} (${member.flat_number})? This cannot be undone.`)) return;
     try {
       const { error } = await supabase
@@ -346,19 +348,21 @@ export default function MembersPage() {
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
-                  {/* Edit / Delete — stop propagation so card click doesn't open detail modal */}
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                      onClick={() => openEdit(member)}
-                      className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors">
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </motion.button>
-                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                      onClick={() => deleteMember(member)}
-                      className="p-1.5 bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </motion.button>
-                  </div>
+                  {/* Edit / Delete — only visible to authorized roles */}
+                  {canAssignRoles && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                        onClick={() => openEdit(member)}
+                        className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </motion.button>
+                      <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                        onClick={() => deleteMember(member)}
+                        className="p-1.5 bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
