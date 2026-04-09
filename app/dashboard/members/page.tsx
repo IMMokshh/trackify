@@ -61,14 +61,49 @@ export default function MembersPage() {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
+  const [canAssignRoles, setCanAssignRoles] = useState(false);
+  const [roleChanging, setRoleChanging] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("");
   const [newMember, setNewMember] = useState({
     full_name: "", email: "", phone: "", flat_number: "",
     family_members: "1", badge: "Resident", has_parking: false,
     parking_slot: "", has_pets: false, pets_count: "0",
   });
 
-  useEffect(() => { fetchMembers(); }, []);
+  useEffect(() => { fetchMembers(); checkPermissions(); }, []);
   useEffect(() => { filterMembers(); }, [searchTerm, filterWing, filterFloor, members]);
+
+  const checkPermissions = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: member } = await supabase.from("society_members").select("badge").eq("email", user.email).single();
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    const allowed = ["Chairwoman", "Chairman", "Secretary", "Committee", "Committee Member", "Treasurer"];
+    setCanAssignRoles(profile?.role === "admin" || allowed.includes(member?.badge || ""));
+  };
+
+  const assignRole = async () => {
+    if (!selectedMember || !selectedRole) return;
+    setRoleChanging(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/members/assign-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ memberId: selectedMember.id, newRole: selectedRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(`Role updated to ${selectedRole}`);
+      setSelectedMember({ ...selectedMember, badge: selectedRole });
+      fetchMembers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update role");
+    } finally {
+      setRoleChanging(false);
+    }
+  };
 
   const fetchMembers = async () => {
     const { data, error } = await supabase.from("society_members").select("*").order("flat_number", { ascending: true });
@@ -349,6 +384,30 @@ export default function MembersPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Role Assignment — visible to authorized roles only */}
+                      {canAssignRoles && (
+                        <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100">
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Assign Role</p>
+                          <div className="flex gap-2">
+                            <select
+                              defaultValue={selectedMember.badge}
+                              onChange={(e) => setSelectedRole(e.target.value)}
+                              className="flex-1 px-3 py-2.5 border-2 border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                            >
+                              {["Resident", "Guard", "Committee", "Committee Member", "Treasurer", "Secretary", "Chairwoman", "Chairman"].map((r) => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                              onClick={assignRole}
+                              disabled={roleChanging || !selectedRole || selectedRole === selectedMember.badge}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
+                              {roleChanging ? "Saving..." : "Save"}
+                            </motion.button>
+                          </div>
+                        </div>
+                      )}
 
                       <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                         onClick={() => setSelectedMember(null)}

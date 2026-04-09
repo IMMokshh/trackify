@@ -7,10 +7,11 @@ import {
   PiggyBank, Filter, Calendar, CheckCircle, Clock,
   AlertTriangle, Trash2, ChevronDown, Mic, MicOff,
   Sparkles, Building2, CreditCard, ArrowUpCircle, ArrowDownCircle,
-  Edit2,
+  Edit2, Download,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { SOCIETY } from "@/lib/societyConfig";
+import { exportSocietyFundExcel } from "@/lib/excelExport";
 
 const CATEGORIES = ["All", "Maintenance", "Events", "Repairs", "Utilities", "Other"];
 const CAT_COLORS: Record<string, string> = {
@@ -210,6 +211,26 @@ export default function SocietyFundPage() {
             onClick={() => setShowBudgetModal(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-emerald-300 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-50 transition-colors shadow-sm">
             <PiggyBank className="w-4 h-4" /> Set Budget
+          </motion.button>
+          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+            onClick={() => exportSocietyFundExcel(transactions, budget)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-blue-300 text-blue-700 rounded-xl text-sm font-bold hover:bg-blue-50 transition-colors shadow-sm">
+            <Download className="w-4 h-4" /> Export Fund Excel
+          </motion.button>
+          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+            onClick={() => {
+              // Build budget categories from transaction data
+              const catMap: Record<string, { allocated: number; spent: number }> = {};
+              transactions.forEach((tx) => {
+                if (!catMap[tx.category]) catMap[tx.category] = { allocated: budget / 5, spent: 0 };
+                if (tx.type === "debit") catMap[tx.category].spent += tx.amount;
+                else catMap[tx.category].allocated += tx.amount;
+              });
+              const cats = Object.entries(catMap).map(([name, v]) => ({ name, ...v }));
+              import("@/lib/excelExport").then(({ exportBudgetExcel }) => exportBudgetExcel(cats));
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-purple-300 text-purple-700 rounded-xl text-sm font-bold hover:bg-purple-50 transition-colors shadow-sm">
+            <Download className="w-4 h-4" /> Export Budget Excel
           </motion.button>
           <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
             onClick={() => setShowAddModal(true)}

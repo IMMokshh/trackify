@@ -218,7 +218,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex" style={{ isolation: "auto" }}>
       {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex lg:flex-col lg:w-72 bg-gradient-primary text-white shadow-2xl overflow-hidden h-screen sticky top-0">
         <div className="p-6 flex flex-col h-full overflow-hidden">
@@ -401,7 +401,7 @@ export default function DashboardLayout({
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col">
         {/* Desktop Header with Notification Bell */}
         <div className="hidden lg:flex bg-white shadow-sm p-4 items-center justify-end sticky top-0 z-40">
           {/* Notification Bell - Desktop */}
@@ -589,9 +589,10 @@ export default function DashboardLayout({
         <main className="flex-1 p-4 lg:p-8 relative">
           <motion.div
             key={pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{ transform: "none" }}
           >
             {children}
           </motion.div>

@@ -283,6 +283,19 @@ function InviteModal({ onClose, onCreated, prefill }: InviteModalProps) {
     valid_from:    prefill?.valid_from    || "",
     valid_until:   prefill?.valid_until   || "",
   });
+
+  // Sync prefill into form whenever it changes (handles async prefill arrival)
+  useEffect(() => {
+    if (prefill) {
+      setForm({
+        visitor_name:  prefill.visitor_name  || "",
+        visitor_phone: prefill.visitor_phone || "",
+        purpose:       (prefill.purpose as PassPurpose) || "Guest",
+        valid_from:    prefill.valid_from    || "",
+        valid_until:   prefill.valid_until   || "",
+      });
+    }
+  }, [prefill]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<VisitorPass | null>(null);

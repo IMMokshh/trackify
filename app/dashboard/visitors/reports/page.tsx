@@ -8,6 +8,7 @@ import {
   FileText, Search, Calendar, Download, LogIn, LogOut,
   Clock, CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
+import { exportVisitorPassExcel } from "@/lib/excelExport";
 
 type VisitorStatus = "active" | "inside" | "exited" | "used" | "expired" | "cancelled";
 
@@ -90,19 +91,10 @@ export default function VisitorReportsPage() {
     if (allowed) fetchLogs();
   }, [allowed, fetchLogs]);
 
-  const exportCSV = () => {
-    const headers = ["Visitor Name", "Phone", "Flat", "Purpose", "Status", "Entry Time", "Exit Time", "Created"];
-    const rows = filtered.map((l) => [
-      l.visitor_name, l.visitor_phone || "", l.flat_number, l.purpose,
-      STATUS_CONFIG[l.status]?.label || l.status,
-      fmt(l.entry_time), fmt(l.exit_time), fmt(l.created_at),
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url;
-    a.download = `visitor-report-${fromDate}-to-${toDate}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+  const exportCSV = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user?.id || "").single();
+    await exportVisitorPassExcel(filtered, profile?.full_name || "Admin");
   };
 
   const filtered = logs.filter((l) => filterStatus === "all" || l.status === filterStatus);
@@ -133,7 +125,7 @@ export default function VisitorReportsPage() {
         <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
           onClick={exportCSV}
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg transition-colors">
-          <Download className="w-4 h-4" /> Export CSV
+          <Download className="w-4 h-4" /> Export Excel
         </motion.button>
       </motion.div>
 
