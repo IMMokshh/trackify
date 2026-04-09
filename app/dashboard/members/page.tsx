@@ -7,7 +7,7 @@ import AvatarInitials from "@/components/ui/AvatarInitials";
 import {
   Users, Search, Filter, User, Phone, Home, Car,
   PawPrint, X, Crown, Shield, Star, Mail, Building2,
-  BadgeCheck, Hash, ChevronRight, ShieldCheck,
+  BadgeCheck, Hash, ChevronRight, ShieldCheck, Edit2, Trash2,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
@@ -64,6 +64,9 @@ export default function MembersPage() {
   const [canAssignRoles, setCanAssignRoles] = useState(false);
   const [roleChanging, setRoleChanging] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editForm, setEditForm] = useState<any>(null);
   const [newMember, setNewMember] = useState({
     full_name: "", email: "", phone: "", flat_number: "",
     family_members: "1", badge: "Resident", has_parking: false,
@@ -102,6 +105,75 @@ export default function MembersPage() {
       toast.error(err.message || "Failed to update role");
     } finally {
       setRoleChanging(false);
+    }
+  };
+
+  const openEdit = (member: any) => {
+    setEditForm({
+      id: member.id,
+      full_name: member.full_name || "",
+      email: member.email || "",
+      phone: member.phone || "",
+      flat_number: member.flat_number || "",
+      family_members: String(member.family_members || 1),
+      badge: member.badge || "Resident",
+      has_parking: member.has_parking || false,
+      parking_slot: member.parking_slot || "",
+      has_pets: member.has_pets || false,
+      pets_count: String(member.pets_count || 0),
+    });
+    setShowEditModal(true);
+  };
+
+  const saveMember = async () => {
+    if (!editForm?.full_name?.trim() || !editForm?.flat_number?.trim()) {
+      toast.error("Name and flat number are required");
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const { error } = await supabase
+        .from("society_members")
+        .update({
+          full_name: editForm.full_name.trim(),
+          email: editForm.email.trim(),
+          phone: editForm.phone.trim(),
+          flat_number: editForm.flat_number.trim(),
+          family_members: parseInt(editForm.family_members) || 1,
+          badge: editForm.badge,
+          has_parking: editForm.has_parking,
+          parking_slot: editForm.parking_slot || null,
+          has_pets: editForm.has_pets,
+          pets_count: parseInt(editForm.pets_count) || 0,
+        })
+        .eq("id", editForm.id);
+
+      if (error) throw error;
+      toast.success("Member updated successfully");
+      setShowEditModal(false);
+      setSelectedMember(null);
+      fetchMembers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update member");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const deleteMember = async (member: any) => {
+    if (!confirm(`Delete ${member.full_name} (${member.flat_number})? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase
+        .from("society_members")
+        .delete()
+        .eq("id", member.id);
+
+      if (error) throw error;
+      toast.success("Member deleted");
+      setSelectedMember(null);
+      fetchMembers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete member");
     }
   };
 
@@ -274,6 +346,19 @@ export default function MembersPage() {
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
+                  {/* Edit / Delete — stop propagation so card click doesn't open detail modal */}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                      onClick={() => openEdit(member)}
+                      className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                      onClick={() => deleteMember(member)}
+                      className="p-1.5 bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </motion.button>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -409,11 +494,23 @@ export default function MembersPage() {
                         </div>
                       )}
 
-                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedMember(null)}
-                        className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-sm">
-                        Close
-                      </motion.button>
+                      <div className="flex gap-2">
+                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={() => openEdit(selectedMember)}
+                          className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors text-sm">
+                          Edit
+                        </motion.button>
+                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={() => deleteMember(selectedMember)}
+                          className="flex-1 py-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold rounded-xl transition-colors text-sm border border-red-200">
+                          Delete
+                        </motion.button>
+                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={() => setSelectedMember(null)}
+                          className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors text-sm">
+                          Close
+                        </motion.button>
+                      </div>
                     </div>
                   </>
                 );
@@ -487,6 +584,80 @@ export default function MembersPage() {
                 </motion.button>
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                   onClick={() => setShowAddModal(false)}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold">
+                  Cancel
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Member Modal */}
+      <AnimatePresence>
+        {showEditModal && editForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEditModal(false)}>
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Member</h2>
+                <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="space-y-4">
+                {[
+                  { label: "Full Name *", key: "full_name", type: "text" },
+                  { label: "Email", key: "email", type: "email" },
+                  { label: "Phone", key: "phone", type: "tel" },
+                  { label: "Flat Number *", key: "flat_number", type: "text" },
+                  { label: "Family Members", key: "family_members", type: "number" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">{f.label}</label>
+                    <input type={f.type} value={editForm[f.key]}
+                      onChange={(e) => setEditForm({ ...editForm, [f.key]: e.target.value })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                  </div>
+                ))}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Role</label>
+                  <select value={editForm.badge} onChange={(e) => setEditForm({ ...editForm, badge: e.target.value })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                    {["Resident","Guard","Committee","Committee Member","Treasurer","Secretary","Chairwoman","Chairman"].map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-4">
+                  {[{ key: "has_parking", label: "Has Parking" }, { key: "has_pets", label: "Has Pets" }].map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editForm[c.key]}
+                        onChange={(e) => setEditForm({ ...editForm, [c.key]: e.target.checked })} className="w-4 h-4 accent-indigo-500" />
+                      <span className="text-sm text-gray-700">{c.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {editForm.has_parking && (
+                  <input value={editForm.parking_slot} onChange={(e) => setEditForm({ ...editForm, parking_slot: e.target.value })}
+                    placeholder="Parking slot (e.g. P-12)"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                )}
+                {editForm.has_pets && (
+                  <input type="number" value={editForm.pets_count} onChange={(e) => setEditForm({ ...editForm, pets_count: e.target.value })}
+                    placeholder="Number of pets"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                )}
+              </div>
+              <div className="flex gap-3 mt-6">
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={saveMember} disabled={editLoading}
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors">
+                  {editLoading ? "Saving..." : "Save Changes"}
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowEditModal(false)}
                   className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold">
                   Cancel
                 </motion.button>
