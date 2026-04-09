@@ -1,319 +1,322 @@
 import ExcelJS from "exceljs";
 
-// Native blob download — no file-saver dependency needed
 function saveAs(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────
+const F = "Times New Roman";
+const C = {
+  navyDark:  "FF0D1B2A",
+  navy:      "FF1E3A5F",
+  navyLight: "FFD6E4F0",
+  altRow:    "FFF5F9FF",
+  white:     "FFFFFFFF",
+  gray:      "FF888888",
+  green:     "FFD4EDDA",  greenText: "FF155724",
+  red:       "FFF8D7DA",  redText:   "FF721C24",
+  amber:     "FFFFF3CD",  amberText: "FF856404",
+};
 
-const FONT_NAME = "Times New Roman";
-const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD6E4F0" } };
-const TITLE_FILL: ExcelJS.Fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E2D3B" } };
-const GREEN_FILL: ExcelJS.Fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD4EDDA" } };
-const RED_FILL: ExcelJS.Fill    = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8D7DA" } };
-const AMBER_FILL: ExcelJS.Fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } };
+const fill = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+const fn = (bold = false, size = 11, color = "FF111111", italic = false): Partial<ExcelJS.Font> =>
+  ({ name: F, bold, size, color: { argb: color }, italic });
 
-function baseFont(bold = false, size = 11, color = "FF000000"): Partial<ExcelJS.Font> {
-  return { name: FONT_NAME, bold, size, color: { argb: color } };
-}
+const border = (style: ExcelJS.BorderStyle = "thin", color = "FFCCCCCC"): Partial<ExcelJS.Borders> => ({
+  top: { style, color: { argb: color } }, bottom: { style, color: { argb: color } },
+  left: { style, color: { argb: color } }, right: { style, color: { argb: color } },
+});
 
-function applyHeaderRow(row: ExcelJS.Row, bgFill = HEADER_FILL) {
-  row.eachCell((cell) => {
-    cell.font = baseFont(true, 11);
-    cell.fill = bgFill;
-    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    cell.border = {
-      top: { style: "thin" }, bottom: { style: "thin" },
-      left: { style: "thin" }, right: { style: "thin" },
-    };
+function headerRow(row: ExcelJS.Row) {
+  row.height = 26;
+  row.eachCell((c) => {
+    c.font = fn(true, 12, C.white);
+    c.fill = fill(C.navy);
+    c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    c.border = border("medium", C.navy);
   });
-  row.height = 22;
 }
 
-function autoWidth(sheet: ExcelJS.Worksheet, minWidth = 12, maxWidth = 50) {
+function dataRow(row: ExcelJS.Row, alt = false) {
+  row.height = 18;
+  row.eachCell({ includeEmpty: true }, (c) => {
+    if (!c.font) c.font = fn(false, 11);
+    else c.font = { ...c.font, name: F, size: c.font.size || 11 };
+    c.alignment = { vertical: "middle" };
+    c.border = border("thin");
+    if (alt && !(c.fill as any)?.fgColor?.argb?.match(/^FF[0-9A-F]{6}$/)?.input?.startsWith("FFD4") &&
+        !(c.fill as any)?.fgColor?.argb?.match(/^FFF8/) &&
+        !(c.fill as any)?.fgColor?.argb?.match(/^FFFF/)) {
+      c.fill = fill(C.altRow);
+    }
+  });
+}
+
+function autoWidth(sheet: ExcelJS.Worksheet) {
   sheet.columns.forEach((col) => {
-    let max = minWidth;
-    col.eachCell?.({ includeEmpty: false }, (cell) => {
-      const len = cell.value ? String(cell.value).length : 0;
-      if (len > max) max = len;
+    let max = 14;
+    col.eachCell?.({ includeEmpty: false }, (c) => {
+      const l = c.value ? String(c.value).length : 0;
+      if (l > max) max = l;
     });
-    col.width = Math.min(max + 4, maxWidth);
+    col.width = Math.min(max + 4, 55);
   });
 }
 
-function freezeAndFilter(sheet: ExcelJS.Worksheet, headerRow = 1) {
-  sheet.views = [{ state: "frozen", ySplit: headerRow }];
-  sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: sheet.columnCount } };
+function freeze(sheet: ExcelJS.Worksheet, row: number) {
+  sheet.views = [{ state: "frozen", ySplit: row }];
+  sheet.autoFilter = { from: { row, column: 1 }, to: { row, column: sheet.columnCount } };
 }
 
-function addTitleBlock(sheet: ExcelJS.Worksheet, title: string, subtitle: string, colCount: number) {
-  sheet.mergeCells(1, 1, 1, colCount);
+function titleBlock(sheet: ExcelJS.Worksheet, title: string, sub: string, cols: number) {
+  sheet.mergeCells(1, 1, 1, cols);
   const t = sheet.getCell("A1");
-  t.value = title;
-  t.font = baseFont(true, 16, "FFFFFFFF");
-  t.fill = TITLE_FILL;
-  t.alignment = { horizontal: "center", vertical: "middle" };
-  sheet.getRow(1).height = 30;
+  t.value = title; t.font = fn(true, 20, C.white);
+  t.fill = fill(C.navyDark); t.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(1).height = 40;
 
-  sheet.mergeCells(2, 1, 2, colCount);
+  sheet.mergeCells(2, 1, 2, cols);
   const s = sheet.getCell("A2");
-  s.value = subtitle;
-  s.font = baseFont(false, 10, "FF888888");
-  s.alignment = { horizontal: "center" };
-  sheet.getRow(2).height = 16;
+  s.value = sub; s.font = fn(false, 11, "FFAAAAAA", true);
+  s.fill = fill("FF111E2A"); s.alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(2).height = 20;
+
+  sheet.mergeCells(3, 1, 3, cols);
+  sheet.getRow(3).height = 8;
 }
 
-function addMetadataSheet(wb: ExcelJS.Workbook, generatedBy: string, totalRecords: number) {
-  const sheet = wb.addWorksheet("Metadata");
-  addTitleBlock(sheet, "REPORT METADATA", "System-generated information", 2);
+function sectionLabel(sheet: ExcelJS.Worksheet, label: string, cols: number) {
+  const r = sheet.rowCount + 1;
+  sheet.mergeCells(r, 1, r, cols);
+  const c = sheet.getCell(r, 1);
+  c.value = label; c.font = fn(true, 12, C.navy);
+  c.fill = fill(C.navyLight); c.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+  c.border = border("medium", C.navy);
+  sheet.getRow(r).height = 22;
+}
 
+function metaSheet(wb: ExcelJS.Workbook, by: string, total: number) {
+  const s = wb.addWorksheet("Metadata");
+  titleBlock(s, "REPORT METADATA", "Trackify — Greenwood Heights CHS", 2);
   const rows = [
     ["Field", "Value"],
     ["Generated Date", new Date().toLocaleString("en-IN")],
-    ["Generated By", generatedBy],
-    ["Total Records", totalRecords],
+    ["Generated By", by],
+    ["Total Records", total],
     ["System Version", "Trackify v1.0"],
-    ["Export Format", "XLSX (ExcelJS)"],
+    ["Export Format", "XLSX — ExcelJS"],
     ["Society", "Greenwood Heights Co-operative Housing Society"],
+    ["Platform", "Trackify — Community Management"],
   ];
-
   rows.forEach((r, i) => {
-    const row = sheet.addRow(r);
-    if (i === 0) {
-      applyHeaderRow(row);
-    } else {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      row.eachCell((c) => {
-        c.border = { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } };
-      });
+    const row = s.addRow(r);
+    if (i === 0) { headerRow(row); }
+    else {
+      row.getCell(1).font = fn(true, 11, C.navy);
+      row.getCell(2).font = fn(false, 11);
+      row.eachCell((c) => { c.border = border(); });
+      if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
     }
   });
-
-  autoWidth(sheet);
-  sheet.views = [{ state: "frozen", ySplit: 3 }];
+  autoWidth(s);
+  s.views = [{ state: "frozen", ySplit: 4 }];
 }
 
-// ── VISITOR PASS EXPORT ───────────────────────────────────────────────────────
-
+// ── VISITOR PASS EXPORT ───────────────────────────────────────
 export async function exportVisitorPassExcel(passes: any[], generatedBy = "Admin") {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Trackify";
-  wb.created = new Date();
+  wb.creator = "Trackify"; wb.created = new Date();
 
   // ── Raw Data ──
   const raw = wb.addWorksheet("Raw Data");
-  addTitleBlock(raw, "VISITOR PASS REPORT", `Generated: ${new Date().toLocaleDateString("en-IN")}`, 7);
-  raw.addRow([]);
+  titleBlock(raw, "VISITOR PASS REPORT", `Greenwood Heights CHS  |  Generated: ${new Date().toLocaleDateString("en-IN")}  |  Total: ${passes.length} records`, 8);
+  const hRow = raw.addRow(["#", "Visitor Name", "Flat No.", "Purpose", "Status", "Entry Time", "Exit Time", "Created At"]);
+  headerRow(hRow);
 
-  const headers = ["Visitor Name", "Flat No.", "Purpose", "Status", "Entry Time", "Exit Time", "Created At"];
-  const hRow = raw.addRow(headers);
-  applyHeaderRow(hRow);
-
-  passes.forEach((p) => {
+  passes.forEach((p, i) => {
     const row = raw.addRow([
+      i + 1,
       p.visitor_name || "",
       p.flat_number || "",
       p.purpose || "",
-      p.status || "",
+      p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : "",
       p.entry_time ? new Date(p.entry_time).toLocaleString("en-IN") : "—",
       p.exit_time  ? new Date(p.exit_time).toLocaleString("en-IN")  : "—",
       p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "",
     ]);
-    row.eachCell((c) => { c.font = baseFont(false, 11); c.alignment = { vertical: "middle" }; });
-
-    // Conditional formatting by status
-    const statusCell = row.getCell(4);
-    if (p.status === "exited")    { statusCell.fill = GREEN_FILL; statusCell.font = baseFont(true, 11, "FF155724"); }
-    else if (p.status === "inside")   { statusCell.fill = AMBER_FILL; statusCell.font = baseFont(true, 11, "FF856404"); }
-    else if (p.status === "expired" || p.status === "cancelled") { statusCell.fill = RED_FILL; statusCell.font = baseFont(true, 11, "FF721C24"); }
+    dataRow(row, i % 2 === 1);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    const sc = row.getCell(5);
+    if (p.status === "exited")    { sc.fill = fill(C.green);  sc.font = fn(true, 11, C.greenText); }
+    else if (p.status === "inside")   { sc.fill = fill(C.amber);  sc.font = fn(true, 11, C.amberText); }
+    else if (p.status === "expired" || p.status === "cancelled") { sc.fill = fill(C.red); sc.font = fn(true, 11, C.redText); }
+    else if (p.status === "active")   { sc.fill = fill("FFD1ECF1"); sc.font = fn(true, 11, "FF0C5460"); }
   });
-
-  autoWidth(raw);
-  freezeAndFilter(raw, 4);
+  autoWidth(raw); freeze(raw, 4);
 
   // ── Summary ──
   const sum = wb.addWorksheet("Summary");
-  addTitleBlock(sum, "VISITOR SUMMARY", "", 3);
-  sum.addRow([]);
+  titleBlock(sum, "VISITOR SUMMARY", `Total Passes: ${passes.length}  |  Generated: ${new Date().toLocaleDateString("en-IN")}`, 3);
 
   const statusCounts: Record<string, number> = {};
   const dayCounts: Record<string, number> = {};
   const hourCounts: Record<number, number> = {};
+  const purposeCounts: Record<string, number> = {};
 
   passes.forEach((p) => {
     statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
+    purposeCounts[p.purpose] = (purposeCounts[p.purpose] || 0) + 1;
     const day = p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "Unknown";
     dayCounts[day] = (dayCounts[day] || 0) + 1;
-    if (p.entry_time) {
-      const h = new Date(p.entry_time).getHours();
-      hourCounts[h] = (hourCounts[h] || 0) + 1;
-    }
+    if (p.entry_time) { const h = new Date(p.entry_time).getHours(); hourCounts[h] = (hourCounts[h] || 0) + 1; }
   });
 
-  const peakDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
+  const peakDay  = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
   const peakHour = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
 
-  const summaryRows = [
-    ["Metric", "Value", "Notes"],
+  sectionLabel(sum, "OVERALL STATISTICS", 3);
+  const sh = sum.addRow(["Metric", "Count", "Notes"]); headerRow(sh);
+  [
     ["Total Passes", passes.length, "All time"],
-    ["Active", statusCounts["active"] || 0, "Pending entry"],
-    ["Inside", statusCounts["inside"] || 0, "Currently inside"],
+    ["Active (Pending Entry)", statusCounts["active"] || 0, "Pass generated, not yet used"],
+    ["Inside Society", statusCounts["inside"] || 0, "Entry verified, not yet exited"],
     ["Exited", statusCounts["exited"] || 0, "Completed visits"],
-    ["Expired", statusCounts["expired"] || 0, ""],
-    ["Cancelled", statusCounts["cancelled"] || 0, ""],
+    ["Expired", statusCounts["expired"] || 0, "Passed validity window"],
+    ["Cancelled", statusCounts["cancelled"] || 0, "Cancelled by resident"],
     ["Peak Day", peakDay?.[0] || "N/A", `${peakDay?.[1] || 0} visitors`],
-    ["Peak Hour", peakHour ? `${peakHour[0]}:00 – ${Number(peakHour[0]) + 1}:00` : "N/A", `${peakHour?.[1] || 0} entries`],
-  ];
-
-  summaryRows.forEach((r, i) => {
+    ["Peak Entry Hour", peakHour ? `${peakHour[0]}:00 – ${Number(peakHour[0]) + 1}:00` : "N/A", `${peakHour?.[1] || 0} entries`],
+  ].forEach((r, i) => {
     const row = sum.addRow(r);
-    if (i === 0) { applyHeaderRow(row); }
-    else {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      row.getCell(3).font = baseFont(false, 10, "FF888888");
-    }
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(true, 12);
+    row.getCell(3).font = fn(false, 10, C.gray, true);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { if (!(c.fill as any)?.fgColor?.argb?.startsWith("FF1")) c.fill = fill(C.altRow); });
   });
 
-  autoWidth(sum);
-  sum.views = [{ state: "frozen", ySplit: 4 }];
+  sum.addRow([]);
+  sectionLabel(sum, "PURPOSE BREAKDOWN", 3);
+  const ph = sum.addRow(["Purpose", "Count", "% of Total"]); headerRow(ph);
+  Object.entries(purposeCounts).sort((a, b) => b[1] - a[1]).forEach((([p, c], i) => {
+    const row = sum.addRow([p, c, `${((c / passes.length) * 100).toFixed(1)}%`]);
+    row.getCell(1).font = fn(true, 11);
+    row.getCell(2).font = fn(false, 11);
+    row.getCell(3).font = fn(false, 11, C.navy);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
+  }));
+
+  autoWidth(sum); sum.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Dashboard ──
   const dash = wb.addWorksheet("Dashboard");
-  addTitleBlock(dash, "VISITOR DASHBOARD", "Charts & Visual Summary", 4);
-  dash.addRow([]);
+  titleBlock(dash, "VISITOR DASHBOARD", "Visitors per Day  |  Status Distribution  |  Purpose Breakdown", 4);
 
-  // Visitors per day table (for chart data)
-  dash.addRow(["Date", "Visitor Count"]);
-  applyHeaderRow(dash.getRow(dash.rowCount));
-  Object.entries(dayCounts).sort().forEach(([d, c]) => {
-    dash.addRow([d, c]);
+  sectionLabel(dash, "VISITORS PER DAY", 2);
+  const dh = dash.addRow(["Date", "Visitor Count"]); headerRow(dh);
+  Object.entries(dayCounts).sort().forEach(([d, c], i) => {
+    const row = dash.addRow([d, c]);
+    row.getCell(1).font = fn(false, 11); row.getCell(2).font = fn(true, 11, c > 5 ? C.navy : "FF111111");
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
 
   dash.addRow([]);
-  dash.addRow(["Status", "Count"]);
-  applyHeaderRow(dash.getRow(dash.rowCount));
-  Object.entries(statusCounts).forEach(([s, c]) => {
-    dash.addRow([s, c]);
+  sectionLabel(dash, "STATUS DISTRIBUTION", 2);
+  const sh2 = dash.addRow(["Status", "Count"]); headerRow(sh2);
+  Object.entries(statusCounts).forEach(([s, c], i) => {
+    const row = dash.addRow([s.charAt(0).toUpperCase() + s.slice(1), c]);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
 
-  autoWidth(dash);
-  dash.views = [{ state: "frozen", ySplit: 4 }];
+  autoWidth(dash); dash.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Insights ──
   const ins = wb.addWorksheet("Insights");
-  addTitleBlock(ins, "AI INSIGHTS", "Auto-generated observations", 2);
-  ins.addRow([]);
+  titleBlock(ins, "AI INSIGHTS", "Auto-generated observations based on visitor data", 2);
+  sectionLabel(ins, "KEY OBSERVATIONS", 2);
+  const ih = ins.addRow(["#", "Insight"]); headerRow(ih);
 
-  const insightRows = [
-    ["#", "Insight"],
-    ["1", peakDay ? `Highest visitor traffic observed on ${peakDay[0]} (${peakDay[1]} visitors)` : "Insufficient data for peak day analysis"],
-    ["2", peakHour ? `Most entries happen during ${peakHour[0]}:00 – ${Number(peakHour[0]) + 1}:00` : "No entry time data available"],
-    ["3", `${((statusCounts["exited"] || 0) / Math.max(passes.length, 1) * 100).toFixed(1)}% of visitors have completed their visit (exited)`],
-    ["4", `${statusCounts["cancelled"] || 0} passes were cancelled before use`],
-    ["5", `Top 3 purposes: ${Object.entries(passes.reduce((acc: any, p) => { acc[p.purpose] = (acc[p.purpose] || 0) + 1; return acc; }, {})).sort((a: any, b: any) => b[1] - a[1]).slice(0, 3).map((e: any) => e[0]).join(", ")}`],
-  ];
+  const top3purposes = Object.entries(purposeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]).join(", ");
+  const exitRate = ((statusCounts["exited"] || 0) / Math.max(passes.length, 1) * 100).toFixed(1);
 
-  insightRows.forEach((r, i) => {
-    const row = ins.addRow(r);
-    if (i === 0) { applyHeaderRow(row); }
-    else {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      row.height = 20;
-    }
+  [
+    peakDay ? `Highest visitor traffic on ${peakDay[0]} with ${peakDay[1]} visitors` : "Insufficient data for peak day",
+    peakHour ? `Most entries between ${peakHour[0]}:00 – ${Number(peakHour[0]) + 1}:00` : "No entry time data",
+    `${exitRate}% of all passes have been fully completed (entry + exit verified)`,
+    `${statusCounts["cancelled"] || 0} passes were cancelled before use`,
+    `Top 3 visit purposes: ${top3purposes}`,
+    `${statusCounts["inside"] || 0} visitor(s) currently inside the society`,
+    `${statusCounts["active"] || 0} pass(es) pending entry verification`,
+  ].forEach((text, i) => {
+    const row = ins.addRow([i + 1, text]);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(false, 11);
+    row.height = 20;
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
 
-  autoWidth(ins);
-  ins.views = [{ state: "frozen", ySplit: 4 }];
+  ins.addRow([]);
+  sectionLabel(ins, "TOP 5 BUSIEST DAYS", 2);
+  const bh = ins.addRow(["Rank", "Date", "Visitors"]); headerRow(bh);
+  Object.entries(dayCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([d, c], i) => {
+    const row = ins.addRow([i + 1, d, c]);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
+  });
 
-  // ── Metadata ──
-  addMetadataSheet(wb, generatedBy, passes.length);
+  autoWidth(ins); ins.views = [{ state: "frozen", ySplit: 4 }];
+
+  metaSheet(wb, generatedBy, passes.length);
 
   const buf = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buf]), `Visitor_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
 }
 
-// ── SOCIETY FUND EXPORT ───────────────────────────────────────────────────────
-
+// ── SOCIETY FUND EXPORT ───────────────────────────────────────
 export async function exportSocietyFundExcel(transactions: any[], budget: number, generatedBy = "Admin") {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Trackify";
-  wb.created = new Date();
+  wb.creator = "Trackify"; wb.created = new Date();
 
-  // ── Raw Data ──
-  const raw = wb.addWorksheet("Raw Data");
-  addTitleBlock(raw, "SOCIETY FUND REPORT", `Generated: ${new Date().toLocaleDateString("en-IN")}`, 8);
-  raw.addRow([]);
-
-  const headers = ["Date", "Title", "Category", "Type", "Debit (Rs.)", "Credit (Rs.)", "Running Balance (Rs.)", "Status"];
-  const hRow = raw.addRow(headers);
-  applyHeaderRow(hRow);
-
-  // Sort by date ascending for running balance
   const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  let running = 0;
-
-  sorted.forEach((tx) => {
-    const debit  = tx.type === "debit"  ? tx.amount : 0;
-    const credit = tx.type === "credit" ? tx.amount : 0;
-    running += credit - debit;
-
-    const row = raw.addRow([
-      tx.date || "",
-      tx.title || "",
-      tx.category || "",
-      tx.type === "credit" ? "Credit" : "Debit",
-      debit  || "",
-      credit || "",
-      running,
-      tx.status || "",
-    ]);
-
-    row.eachCell((c) => { c.font = baseFont(false, 11); c.alignment = { vertical: "middle" }; });
-
-    // Color debit red, credit green
-    if (tx.type === "debit") {
-      row.getCell(5).font = baseFont(true, 11, "FF721C24");
-      row.getCell(5).fill = RED_FILL;
-    } else {
-      row.getCell(6).font = baseFont(true, 11, "FF155724");
-      row.getCell(6).fill = GREEN_FILL;
-    }
-
-    // Running balance color
-    const balCell = row.getCell(7);
-    balCell.font = baseFont(true, 11, running >= 0 ? "FF155724" : "FF721C24");
-    balCell.fill = running >= 0 ? GREEN_FILL : RED_FILL;
-
-    // Status color
-    const stCell = row.getCell(8);
-    if (tx.status === "Approved") { stCell.fill = GREEN_FILL; stCell.font = baseFont(false, 11, "FF155724"); }
-    else { stCell.fill = AMBER_FILL; stCell.font = baseFont(false, 11, "FF856404"); }
-  });
-
-  autoWidth(raw);
-  freezeAndFilter(raw, 4);
-
-  // ── Summary ──
-  const sum = wb.addWorksheet("Summary");
-  addTitleBlock(sum, "FUND SUMMARY", "", 3);
-  sum.addRow([]);
-
   const totalCredits = transactions.filter(t => t.type === "credit").reduce((s, t) => s + t.amount, 0);
   const totalDebits  = transactions.filter(t => t.type === "debit").reduce((s, t) => s + t.amount, 0);
   const balance = totalCredits - totalDebits;
 
-  // Monthly breakdown
+  // ── Raw Data ──
+  const raw = wb.addWorksheet("Raw Data");
+  titleBlock(raw, "SOCIETY FUND REPORT", `Greenwood Heights CHS  |  Generated: ${new Date().toLocaleDateString("en-IN")}  |  ${transactions.length} transactions`, 8);
+  const hRow = raw.addRow(["#", "Date", "Title", "Category", "Type", "Debit (Rs.)", "Credit (Rs.)", "Running Balance (Rs.)"]);
+  headerRow(hRow);
+
+  let running = 0;
+  sorted.forEach((tx, i) => {
+    const debit  = tx.type === "debit"  ? tx.amount : 0;
+    const credit = tx.type === "credit" ? tx.amount : 0;
+    running += credit - debit;
+    const row = raw.addRow([i + 1, tx.date || "", tx.title || "", tx.category || "",
+      tx.type === "credit" ? "Credit" : "Debit", debit || "", credit || "", running]);
+    dataRow(row, i % 2 === 1);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    if (debit)  { row.getCell(6).fill = fill(C.red);   row.getCell(6).font = fn(true, 11, C.redText); }
+    if (credit) { row.getCell(7).fill = fill(C.green); row.getCell(7).font = fn(true, 11, C.greenText); }
+    const bc = row.getCell(8);
+    bc.fill = fill(running >= 0 ? C.green : C.red);
+    bc.font = fn(true, 11, running >= 0 ? C.greenText : C.redText);
+  });
+  autoWidth(raw); freeze(raw, 4);
+
+  // ── Summary ──
+  const sum = wb.addWorksheet("Summary");
+  titleBlock(sum, "FUND SUMMARY", `Balance: Rs. ${balance.toLocaleString("en-IN")}  |  Budget: Rs. ${budget.toLocaleString("en-IN")}`, 3);
+
   const monthly: Record<string, { credit: number; debit: number }> = {};
   transactions.forEach((tx) => {
     const m = tx.date?.slice(0, 7) || "Unknown";
@@ -322,240 +325,204 @@ export async function exportSocietyFundExcel(transactions: any[], budget: number
     else monthly[m].debit += tx.amount;
   });
 
-  const summaryRows: any[][] = [
-    ["Metric", "Amount (Rs.)", "Notes"],
-    ["Total Credits", totalCredits, "All income received"],
-    ["Total Debits", totalDebits, "All expenses paid"],
-    ["Net Balance", balance, balance >= 0 ? "Surplus" : "Deficit"],
-    ["Annual Budget", budget, "Set by committee"],
-    ["Budget Used %", `${Math.min((totalDebits / budget) * 100, 100).toFixed(1)}%`, totalDebits > budget ? "OVER BUDGET" : "Within budget"],
-    [],
-    ["Month", "Credits (Rs.)", "Debits (Rs.)"],
-  ];
-
-  summaryRows.forEach((r, i) => {
+  sectionLabel(sum, "OVERALL FINANCIALS", 3);
+  const sh = sum.addRow(["Metric", "Amount (Rs.)", "Notes"]); headerRow(sh);
+  [
+    ["Total Credits", `Rs. ${totalCredits.toLocaleString("en-IN")}`, "All income received"],
+    ["Total Debits",  `Rs. ${totalDebits.toLocaleString("en-IN")}`,  "All expenses paid"],
+    ["Net Balance",   `Rs. ${balance.toLocaleString("en-IN")}`,      balance >= 0 ? "Surplus" : "DEFICIT"],
+    ["Annual Budget", `Rs. ${budget.toLocaleString("en-IN")}`,       "Set by committee"],
+    ["Budget Used",   `${Math.min((totalDebits / budget) * 100, 100).toFixed(1)}%`, totalDebits > budget ? "OVER BUDGET" : "Within budget"],
+  ].forEach((r, i) => {
     const row = sum.addRow(r);
-    if (i === 0 || i === 7) { applyHeaderRow(row); }
-    else if (r.length) {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      if (i === 3) {
-        row.getCell(2).fill = balance >= 0 ? GREEN_FILL : RED_FILL;
-        row.getCell(2).font = baseFont(true, 11, balance >= 0 ? "FF155724" : "FF721C24");
-      }
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(true, 12);
+    row.getCell(3).font = fn(false, 10, C.gray, true);
+    row.eachCell((c) => { c.border = border(); });
+    if (i === 2) {
+      row.getCell(2).fill = fill(balance >= 0 ? C.green : C.red);
+      row.getCell(2).font = fn(true, 12, balance >= 0 ? C.greenText : C.redText);
     }
+    if (i % 2 === 0) row.getCell(1).fill = fill(C.altRow);
   });
 
-  Object.entries(monthly).sort().forEach(([m, v]) => {
-    const row = sum.addRow([m, v.credit, v.debit]);
-    row.getCell(2).fill = GREEN_FILL; row.getCell(2).font = baseFont(false, 11, "FF155724");
-    row.getCell(3).fill = RED_FILL;   row.getCell(3).font = baseFont(false, 11, "FF721C24");
+  sum.addRow([]);
+  sectionLabel(sum, "MONTHLY BREAKDOWN", 3);
+  const mh = sum.addRow(["Month", "Credits (Rs.)", "Debits (Rs.)"]); headerRow(mh);
+  Object.entries(monthly).sort().forEach(([m, v], i) => {
+    const row = sum.addRow([m, `Rs. ${v.credit.toLocaleString("en-IN")}`, `Rs. ${v.debit.toLocaleString("en-IN")}`]);
+    row.getCell(1).font = fn(true, 11);
+    row.getCell(2).fill = fill(C.green); row.getCell(2).font = fn(false, 11, C.greenText);
+    row.getCell(3).fill = fill(C.red);   row.getCell(3).font = fn(false, 11, C.redText);
+    row.eachCell((c) => { c.border = border(); });
   });
-
-  autoWidth(sum);
-  sum.views = [{ state: "frozen", ySplit: 4 }];
+  autoWidth(sum); sum.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Dashboard ──
   const dash = wb.addWorksheet("Dashboard");
-  addTitleBlock(dash, "FUND DASHBOARD", "Balance Trend & Category Breakdown", 4);
-  dash.addRow([]);
+  titleBlock(dash, "FUND DASHBOARD", "Balance Trend  |  Category Breakdown", 4);
 
-  dash.addRow(["Date", "Balance (Rs.)"]);
-  applyHeaderRow(dash.getRow(dash.rowCount));
+  sectionLabel(dash, "BALANCE TREND", 2);
+  const dh = dash.addRow(["Date", "Running Balance (Rs.)"]); headerRow(dh);
   let rb = 0;
-  sorted.forEach((tx) => {
+  sorted.forEach((tx, i) => {
     rb += tx.type === "credit" ? tx.amount : -tx.amount;
-    dash.addRow([tx.date, rb]);
+    const row = dash.addRow([tx.date, rb]);
+    row.getCell(2).font = fn(true, 11, rb >= 0 ? C.greenText : C.redText);
+    row.getCell(2).fill = fill(rb >= 0 ? C.green : C.red);
+    row.eachCell((c) => { c.border = border(); });
   });
 
   dash.addRow([]);
-  dash.addRow(["Category", "Total Spent (Rs.)"]);
-  applyHeaderRow(dash.getRow(dash.rowCount));
+  sectionLabel(dash, "CATEGORY SPENDING", 2);
+  const ch = dash.addRow(["Category", "Total Spent (Rs.)"]); headerRow(ch);
   const catTotals: Record<string, number> = {};
-  transactions.filter(t => t.type === "debit").forEach((t) => {
-    catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+  transactions.filter(t => t.type === "debit").forEach((t) => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+  Object.entries(catTotals).sort((a, b) => b[1] - a[1]).forEach(([cat, amt], i) => {
+    const row = dash.addRow([cat, `Rs. ${amt.toLocaleString("en-IN")}`]);
+    row.getCell(1).font = fn(true, 11);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
-  Object.entries(catTotals).sort((a, b) => b[1] - a[1]).forEach(([cat, amt]) => {
-    dash.addRow([cat, amt]);
-  });
-
-  autoWidth(dash);
-  dash.views = [{ state: "frozen", ySplit: 4 }];
+  autoWidth(dash); dash.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Insights ──
   const ins = wb.addWorksheet("Insights");
-  addTitleBlock(ins, "FUND INSIGHTS", "Auto-generated financial observations", 2);
-  ins.addRow([]);
+  titleBlock(ins, "FUND INSIGHTS", "Auto-generated financial observations", 2);
+  sectionLabel(ins, "KEY OBSERVATIONS", 2);
+  const ih = ins.addRow(["#", "Insight"]); headerRow(ih);
 
   const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0];
   const monthlyArr = Object.entries(monthly).sort();
-  let expenseChange = "N/A";
+  let expChange = "N/A";
   if (monthlyArr.length >= 2) {
     const prev = monthlyArr[monthlyArr.length - 2][1].debit;
     const curr = monthlyArr[monthlyArr.length - 1][1].debit;
-    const pct = prev > 0 ? (((curr - prev) / prev) * 100).toFixed(1) : "N/A";
-    expenseChange = `${pct}%`;
+    expChange = prev > 0 ? `${(((curr - prev) / prev) * 100).toFixed(1)}%` : "N/A";
   }
 
-  const top5 = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  const insightRows = [
-    ["#", "Insight"],
-    ["1", topCat ? `Highest spending category: ${topCat[0]} (Rs. ${topCat[1].toLocaleString("en-IN")})` : "No expense data"],
-    ["2", `Expenses changed by ${expenseChange} compared to previous month`],
-    ["3", `Net balance is ${balance >= 0 ? "SURPLUS" : "DEFICIT"} of Rs. ${Math.abs(balance).toLocaleString("en-IN")}`],
-    ["4", totalDebits > budget ? `Budget EXCEEDED by Rs. ${(totalDebits - budget).toLocaleString("en-IN")}` : `Rs. ${(budget - totalDebits).toLocaleString("en-IN")} remaining in annual budget`],
-    ["5", `Total of ${transactions.filter(t => t.status === "Pending").length} transactions pending approval`],
-    [],
-    ["Rank", "Top 5 Expense Categories", "Amount (Rs.)"],
-    ...top5.map(([cat, amt], i) => [i + 1, cat, amt]),
-  ];
-
-  insightRows.forEach((r, i) => {
-    const row = ins.addRow(r);
-    if (i === 0 || i === 7) { applyHeaderRow(row); }
-    else if (r.length) {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      if (r[2]) row.getCell(3).font = baseFont(false, 11);
-    }
+  [
+    topCat ? `Highest spending category: ${topCat[0]} — Rs. ${topCat[1].toLocaleString("en-IN")}` : "No expense data",
+    `Month-over-month expense change: ${expChange}`,
+    `Net balance is ${balance >= 0 ? "SURPLUS" : "DEFICIT"} of Rs. ${Math.abs(balance).toLocaleString("en-IN")}`,
+    totalDebits > budget ? `Budget EXCEEDED by Rs. ${(totalDebits - budget).toLocaleString("en-IN")}` : `Rs. ${(budget - totalDebits).toLocaleString("en-IN")} remaining in annual budget`,
+    `${transactions.filter(t => t.status === "Pending").length} transaction(s) pending approval`,
+  ].forEach((text, i) => {
+    const row = ins.addRow([i + 1, text]);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(false, 11);
+    row.height = 20;
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
 
-  autoWidth(ins);
-  ins.views = [{ state: "frozen", ySplit: 4 }];
+  ins.addRow([]);
+  sectionLabel(ins, "TOP 5 EXPENSE CATEGORIES", 3);
+  const th = ins.addRow(["Rank", "Category", "Amount (Rs.)"]); headerRow(th);
+  Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([cat, amt], i) => {
+    const row = ins.addRow([i + 1, cat, `Rs. ${amt.toLocaleString("en-IN")}`]);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
+  });
 
-  addMetadataSheet(wb, generatedBy, transactions.length);
+  autoWidth(ins); ins.views = [{ state: "frozen", ySplit: 4 }];
+  metaSheet(wb, generatedBy, transactions.length);
 
   const buf = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buf]), `Society_Fund_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
 }
 
-// ── SOCIETY BUDGET EXPORT ─────────────────────────────────────────────────────
-
+// ── BUDGET EXPORT ─────────────────────────────────────────────
 export async function exportBudgetExcel(categories: { name: string; allocated: number; spent: number }[], generatedBy = "Admin") {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Trackify";
-  wb.created = new Date();
-
-  // ── Raw Data ──
-  const raw = wb.addWorksheet("Raw Data");
-  addTitleBlock(raw, "SOCIETY BUDGET REPORT", `Generated: ${new Date().toLocaleDateString("en-IN")}`, 5);
-  raw.addRow([]);
-
-  const headers = ["Category", "Allocated (Rs.)", "Spent (Rs.)", "Remaining (Rs.)", "Status"];
-  const hRow = raw.addRow(headers);
-  applyHeaderRow(hRow);
-
-  categories.forEach((cat) => {
-    const remaining = cat.allocated - cat.spent;
-    const status = remaining < 0 ? "Overspent" : remaining / cat.allocated < 0.2 ? "Critical" : "Healthy";
-    const row = raw.addRow([cat.name, cat.allocated, cat.spent, remaining, status]);
-
-    row.eachCell((c) => { c.font = baseFont(false, 11); c.alignment = { vertical: "middle" }; });
-
-    const remCell = row.getCell(4);
-    const stCell  = row.getCell(5);
-    if (remaining < 0) {
-      remCell.fill = RED_FILL; remCell.font = baseFont(true, 11, "FF721C24");
-      stCell.fill  = RED_FILL; stCell.font  = baseFont(true, 11, "FF721C24");
-    } else if (status === "Critical") {
-      remCell.fill = AMBER_FILL; remCell.font = baseFont(true, 11, "FF856404");
-      stCell.fill  = AMBER_FILL; stCell.font  = baseFont(true, 11, "FF856404");
-    } else {
-      remCell.fill = GREEN_FILL; remCell.font = baseFont(true, 11, "FF155724");
-      stCell.fill  = GREEN_FILL; stCell.font  = baseFont(true, 11, "FF155724");
-    }
-  });
-
-  autoWidth(raw);
-  freezeAndFilter(raw, 4);
-
-  // ── Summary ──
-  const sum = wb.addWorksheet("Summary");
-  addTitleBlock(sum, "BUDGET SUMMARY", "", 3);
-  sum.addRow([]);
+  wb.creator = "Trackify"; wb.created = new Date();
 
   const totalAllocated = categories.reduce((s, c) => s + c.allocated, 0);
   const totalSpent     = categories.reduce((s, c) => s + c.spent, 0);
   const totalRemaining = totalAllocated - totalSpent;
   const overspent      = categories.filter(c => c.spent > c.allocated);
 
-  const summaryRows = [
-    ["Metric", "Amount (Rs.)", "Notes"],
-    ["Total Budget", totalAllocated, "Sum of all allocations"],
-    ["Total Spent", totalSpent, "Sum of all expenses"],
-    ["Total Remaining", totalRemaining, totalRemaining >= 0 ? "Within budget" : "Over budget"],
-    ["Overspent Categories", overspent.length, overspent.map(c => c.name).join(", ") || "None"],
-    ["Budget Utilization", `${((totalSpent / totalAllocated) * 100).toFixed(1)}%`, ""],
-  ];
+  // ── Raw Data ──
+  const raw = wb.addWorksheet("Raw Data");
+  titleBlock(raw, "SOCIETY BUDGET REPORT", `Greenwood Heights CHS  |  Generated: ${new Date().toLocaleDateString("en-IN")}  |  ${categories.length} categories`, 5);
+  const hRow = raw.addRow(["#", "Category", "Allocated (Rs.)", "Spent (Rs.)", "Remaining (Rs.)"]);
+  headerRow(hRow);
 
-  summaryRows.forEach((r, i) => {
+  categories.forEach((cat, i) => {
+    const rem = cat.allocated - cat.spent;
+    const row = raw.addRow([i + 1, cat.name, cat.allocated, cat.spent, rem]);
+    dataRow(row, i % 2 === 1);
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(true, 11);
+    const rc = row.getCell(5);
+    if (rem < 0) { rc.fill = fill(C.red); rc.font = fn(true, 11, C.redText); }
+    else { rc.fill = fill(C.green); rc.font = fn(true, 11, C.greenText); }
+  });
+  autoWidth(raw); freeze(raw, 4);
+
+  // ── Summary ──
+  const sum = wb.addWorksheet("Summary");
+  titleBlock(sum, "BUDGET SUMMARY", `Utilization: ${((totalSpent / totalAllocated) * 100).toFixed(1)}%  |  Overspent: ${overspent.length} categories`, 3);
+  sectionLabel(sum, "OVERALL BUDGET", 3);
+  const sh = sum.addRow(["Metric", "Amount (Rs.)", "Notes"]); headerRow(sh);
+  [
+    ["Total Budget",    `Rs. ${totalAllocated.toLocaleString("en-IN")}`, "Sum of all allocations"],
+    ["Total Spent",     `Rs. ${totalSpent.toLocaleString("en-IN")}`,     "Sum of all expenses"],
+    ["Total Remaining", `Rs. ${totalRemaining.toLocaleString("en-IN")}`, totalRemaining >= 0 ? "Within budget" : "OVER BUDGET"],
+    ["Overspent",       `${overspent.length} categories`,                overspent.map(c => c.name).join(", ") || "None"],
+    ["Utilization",     `${((totalSpent / totalAllocated) * 100).toFixed(1)}%`, ""],
+  ].forEach((r, i) => {
     const row = sum.addRow(r);
-    if (i === 0) { applyHeaderRow(row); }
-    else {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-      row.getCell(3).font = baseFont(false, 10, "FF888888");
-      if (i === 3) {
-        row.getCell(2).fill = totalRemaining >= 0 ? GREEN_FILL : RED_FILL;
-        row.getCell(2).font = baseFont(true, 11, totalRemaining >= 0 ? "FF155724" : "FF721C24");
-      }
+    row.getCell(1).font = fn(true, 11, C.navy);
+    row.getCell(2).font = fn(true, 12);
+    row.getCell(3).font = fn(false, 10, C.gray, true);
+    row.eachCell((c) => { c.border = border(); });
+    if (i === 2) {
+      row.getCell(2).fill = fill(totalRemaining >= 0 ? C.green : C.red);
+      row.getCell(2).font = fn(true, 12, totalRemaining >= 0 ? C.greenText : C.redText);
     }
   });
-
-  autoWidth(sum);
-  sum.views = [{ state: "frozen", ySplit: 4 }];
+  autoWidth(sum); sum.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Dashboard ──
   const dash = wb.addWorksheet("Dashboard");
-  addTitleBlock(dash, "BUDGET DASHBOARD", "Allocation vs Spending", 4);
-  dash.addRow([]);
-
-  dash.addRow(["Category", "Allocated (Rs.)", "Spent (Rs.)", "Remaining (Rs.)"]);
-  applyHeaderRow(dash.getRow(dash.rowCount));
-  categories.forEach((c) => {
-    const row = dash.addRow([c.name, c.allocated, c.spent, c.allocated - c.spent]);
-    row.getCell(3).fill = c.spent > c.allocated ? RED_FILL : GREEN_FILL;
-    row.getCell(4).fill = c.allocated - c.spent < 0 ? RED_FILL : GREEN_FILL;
+  titleBlock(dash, "BUDGET DASHBOARD", "Allocation vs Spending by Category", 4);
+  sectionLabel(dash, "BUDGET vs SPENT", 4);
+  const dh = dash.addRow(["Category", "Allocated (Rs.)", "Spent (Rs.)", "Remaining (Rs.)"]); headerRow(dh);
+  categories.forEach((c, i) => {
+    const rem = c.allocated - c.spent;
+    const row = dash.addRow([c.name, c.allocated, c.spent, rem]);
+    row.getCell(1).font = fn(true, 11);
+    row.getCell(3).fill = fill(c.spent > c.allocated ? C.red : C.green);
+    row.getCell(3).font = fn(true, 11, c.spent > c.allocated ? C.redText : C.greenText);
+    row.getCell(4).fill = fill(rem < 0 ? C.red : C.green);
+    row.getCell(4).font = fn(true, 11, rem < 0 ? C.redText : C.greenText);
+    row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.getCell(1).fill = fill(C.altRow);
   });
-
-  autoWidth(dash);
-  dash.views = [{ state: "frozen", ySplit: 4 }];
+  autoWidth(dash); dash.views = [{ state: "frozen", ySplit: 4 }];
 
   // ── Insights ──
   const ins = wb.addWorksheet("Insights");
-  addTitleBlock(ins, "BUDGET INSIGHTS", "Auto-generated budget observations", 2);
-  ins.addRow([]);
-
-  const mostEfficient = categories.filter(c => c.spent <= c.allocated).sort((a, b) => (a.spent / a.allocated) - (b.spent / b.allocated))[0];
-
-  const insightRows = [
-    ["#", "Insight"],
-    ["1", `${overspent.length} categor${overspent.length === 1 ? "y" : "ies"} exceeded budget: ${overspent.map(c => c.name).join(", ") || "None"}`],
-    ["2", mostEfficient ? `Most efficient category: ${mostEfficient.name} (${((mostEfficient.spent / mostEfficient.allocated) * 100).toFixed(1)}% used)` : "No data"],
-    ["3", `Overall budget utilization: ${((totalSpent / totalAllocated) * 100).toFixed(1)}%`],
-    ["4", `Total unspent budget: Rs. ${Math.max(totalRemaining, 0).toLocaleString("en-IN")}`],
-    ["5", `Highest spending category: ${categories.sort((a, b) => b.spent - a.spent)[0]?.name || "N/A"}`],
-    [],
-    ["Rank", "Category", "Spent (Rs.)", "Status"],
-    ...categories.sort((a, b) => b.spent - a.spent).slice(0, 5).map((c, i) => [
-      i + 1, c.name, c.spent, c.spent > c.allocated ? "Overspent" : "OK"
-    ]),
-  ];
-
-  insightRows.forEach((r, i) => {
-    const row = ins.addRow(r);
-    if (i === 0 || i === 7) { applyHeaderRow(row); }
-    else if (r.length) {
-      row.getCell(1).font = baseFont(true, 11);
-      row.getCell(2).font = baseFont(false, 11);
-    }
+  titleBlock(ins, "BUDGET INSIGHTS", "Auto-generated budget observations", 2);
+  sectionLabel(ins, "KEY OBSERVATIONS", 2);
+  const ih = ins.addRow(["#", "Insight"]); headerRow(ih);
+  const mostEff = categories.filter(c => c.spent <= c.allocated).sort((a, b) => (a.spent / a.allocated) - (b.spent / b.allocated))[0];
+  [
+    `${overspent.length} categor${overspent.length === 1 ? "y" : "ies"} exceeded budget: ${overspent.map(c => c.name).join(", ") || "None"}`,
+    mostEff ? `Most efficient: ${mostEff.name} (${((mostEff.spent / mostEff.allocated) * 100).toFixed(1)}% used)` : "No data",
+    `Overall utilization: ${((totalSpent / totalAllocated) * 100).toFixed(1)}%`,
+    `Unspent budget: Rs. ${Math.max(totalRemaining, 0).toLocaleString("en-IN")}`,
+    `Highest spending: ${categories.sort((a, b) => b.spent - a.spent)[0]?.name || "N/A"}`,
+  ].forEach((text, i) => {
+    const row = ins.addRow([i + 1, text]);
+    row.getCell(1).font = fn(true, 11, C.navy); row.getCell(2).font = fn(false, 11);
+    row.height = 20; row.eachCell((c) => { c.border = border(); });
+    if (i % 2 === 0) row.eachCell((c) => { c.fill = fill(C.altRow); });
   });
-
-  autoWidth(ins);
-  ins.views = [{ state: "frozen", ySplit: 4 }];
-
-  addMetadataSheet(wb, generatedBy, categories.length);
+  autoWidth(ins); ins.views = [{ state: "frozen", ySplit: 4 }];
+  metaSheet(wb, generatedBy, categories.length);
 
   const buf = await wb.xlsx.writeBuffer();
   saveAs(new Blob([buf]), `Budget_Report_${new Date().toISOString().split("T")[0]}.xlsx`);

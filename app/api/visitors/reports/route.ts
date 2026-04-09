@@ -36,8 +36,7 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from("visitor_passes")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .order("created_at", { ascending: false });
 
     if (from) query = query.gte("created_at", new Date(from).toISOString());
     if (to) {

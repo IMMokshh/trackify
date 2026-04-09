@@ -94,7 +94,8 @@ export default function VisitorReportsPage() {
   const exportCSV = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user?.id || "").single();
-    await exportVisitorPassExcel(filtered, profile?.full_name || "Admin");
+    // Export ALL logs, not just the current filter view
+    await exportVisitorPassExcel(logs, profile?.full_name || "Admin");
   };
 
   const filtered = logs.filter((l) => filterStatus === "all" || l.status === filterStatus);
