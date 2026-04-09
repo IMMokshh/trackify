@@ -61,7 +61,7 @@ function addTitleBlock(sheet: ExcelJS.Worksheet, title: string, subtitle: string
   t.font = baseFont(true, 16, "FFFFFFFF");
   t.fill = TITLE_FILL;
   t.alignment = { horizontal: "center", vertical: "middle" };
-  t.height = 30;
+  sheet.getRow(1).height = 30;
 
   sheet.mergeCells(2, 1, 2, colCount);
   const s = sheet.getCell("A2");
