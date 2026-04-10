@@ -55,7 +55,10 @@ export default function ChatPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, async (payload) => {
         const newMsg = payload.new as any;
 
-        // Fetch the profile for the new message sender
+        // Skip if this is our own message (already shown via optimistic update)
+        if (userRef.current && newMsg.user_id === userRef.current.id) return;
+
+        // Fetch the profile for the sender
         const { data: profileData } = await supabase
           .from("profiles")
           .select("full_name, flat_number")
@@ -64,11 +67,10 @@ export default function ChatPage() {
 
         const enriched = { ...newMsg, profiles: profileData };
 
-        if (userRef.current && newMsg.user_id !== userRef.current.id && notifEnabledRef.current) {
+        if (notifEnabledRef.current) {
           notifyNewMessage(profileData?.full_name || "Someone", newMsg.message);
         }
 
-        // Append directly — no full re-fetch needed
         setMessages((prev) => [...prev, enriched]);
       })
       .subscribe();
