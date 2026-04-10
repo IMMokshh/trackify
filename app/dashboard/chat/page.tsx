@@ -49,15 +49,27 @@ export default function ChatPage() {
       setNotificationsEnabled(granted);
     }
 
-    // Single subscription — uses refs so no stale closure
+    // Single subscription — appends new messages instantly without re-fetch
     const subscription = supabase
       .channel("chat_messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, async (payload) => {
         const newMsg = payload.new as any;
+
+        // Fetch the profile for the new message sender
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("full_name, flat_number")
+          .eq("id", newMsg.user_id)
+          .single();
+
+        const enriched = { ...newMsg, profiles: profileData };
+
         if (userRef.current && newMsg.user_id !== userRef.current.id && notifEnabledRef.current) {
-          notifyNewMessage(newMsg.sender_name || "Someone", newMsg.message);
+          notifyNewMessage(profileData?.full_name || "Someone", newMsg.message);
         }
-        fetchMessages();
+
+        // Append directly — no full re-fetch needed
+        setMessages((prev) => [...prev, enriched]);
       })
       .subscribe();
 
@@ -89,11 +101,20 @@ export default function ChatPage() {
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !user) return;
-    await supabase.from("chat_messages").insert({
-      user_id: user.id,
-      message: newMessage,
-    });
+    const text = newMessage.trim();
     setNewMessage("");
+
+    // Optimistic update — show immediately
+    const optimistic = {
+      id: `temp-${Date.now()}`,
+      user_id: user.id,
+      message: text,
+      created_at: new Date().toISOString(),
+      profiles: { full_name: profile?.full_name, flat_number: profile?.flat_number },
+    };
+    setMessages((prev) => [...prev, optimistic]);
+
+    await supabase.from("chat_messages").insert({ user_id: user.id, message: text });
   };
 
   return (
